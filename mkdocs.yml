@@ -1,0 +1,101 @@
+site_name: DevOps Month
+site_description: A hands-on 30-day DevOps course for beginners
+site_author: Balman Rawat
+site_url: https://rbalman.github.io/devops-month
+
+repo_name: rbalman/devops-month
+repo_url: https://github.com/rbalman/devops-month
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - search.highlight
+    - search.share
+    - content.code.copy
+    - content.code.annotate
+  icon:
+    repo: fontawesome/brands/github
+
+plugins:
+  - search
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - attr_list
+  - tables
+  - toc:
+      permalink: true
+
+nav:
+  - Home: index.md
+  - Schedule: schedule.md
+  - Week 1 — Foundation:
+    - Day 01 · DevOps Intro & Setup: week-01/day-01.md
+    - Day 02 · Linux Basics I: week-01/day-02.md
+    - Day 03 · Linux Basics II: week-01/day-03.md
+    - Day 04 · Linux Basics III: week-01/day-04.md
+    - Day 05 · Bash Scripting I: week-01/day-05.md
+    - Day 06 · Bash Scripting II: week-01/day-06.md
+    - Day 07 · Git & GitHub: week-01/day-07.md
+  - Week 2 — Networking & Web:
+    - Day 08 · Networking I: week-02/day-08.md
+    - Day 09 · Networking II: week-02/day-09.md
+    - Day 10 · Nginx: week-02/day-10.md
+    - Day 11 · Apache & SSL: week-02/day-11.md
+    - Day 12 · Containers I: week-02/day-12.md
+    - Day 13 · Containers II: week-02/day-13.md
+    - Day 14 · Docker Compose: week-02/day-14.md
+  - Week 3 — Infrastructure:
+    - Day 15 · Vagrant: week-03/day-15.md
+    - Day 16 · Ansible I: week-03/day-16.md
+    - Day 17 · Ansible II: week-03/day-17.md
+    - Day 18 · Ansible III: week-03/day-18.md
+    - Day 19 · Terraform I: week-03/day-19.md
+    - Day 20 · Terraform II: week-03/day-20.md
+    - Day 21 · Review & Mini Project: week-03/day-21.md
+  - Week 4 — Cloud, CI/CD & Monitoring:
+    - Day 22 · AWS Basics I: week-04/day-22.md
+    - Day 23 · AWS Basics II: week-04/day-23.md
+    - Day 24 · CI/CD I: week-04/day-24.md
+    - Day 25 · CI/CD II: week-04/day-25.md
+    - Day 26 · Monitoring I: week-04/day-26.md
+    - Day 27 · Monitoring II: week-04/day-27.md
+    - Day 28 · Monitoring III: week-04/day-28.md
+    - Day 29 · Final Project: week-04/day-29.md
+    - Day 30 · Job Prep: week-04/day-30.md
+  - Assignments: assignments/index.md
+  - Resources: resources.md
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/rbalman
+    - icon: fontawesome/solid/globe
+      link: https://balmanrawat.com.np
