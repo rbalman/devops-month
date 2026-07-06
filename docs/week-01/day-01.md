@@ -1,5 +1,8 @@
 # Day 01 · DevOps Introduction & Environment Setup
 
+!!! abstract "Slides"
+    📊 [Open the intro slide deck](../slides/day-01.html){target=_blank} — course & DevOps introduction: history, culture, and what a DevOps engineer does.
+
 ## Learning Objectives
 
 - Understand what DevOps is and why it exists
@@ -41,16 +44,18 @@ This course covers the **right half** — infrastructure, deployment, and monito
 
 ### What Does a DevOps Engineer Actually Do?
 
-Day-to-day tasks typically include:
+A useful way to think about the role: whatever the specific tool, almost every DevOps responsibility falls under one of **six key scopes**. A DevOps engineer manages:
 
-- Writing automation scripts (Bash, Python)
-- Managing infrastructure (Terraform, Ansible)
-- Maintaining CI/CD pipelines (GitHub Actions, Jenkins)
-- Running containers (Docker, Kubernetes)
-- Monitoring systems and responding to alerts
-- Managing cloud resources (AWS, GCP, Azure)
+| Scope | What it covers |
+|---|---|
+| **Infrastructure** | Provisioning and running servers, VMs, containers, and cloud resources (often as code) |
+| **Networking** | Connectivity, DNS, load balancers, firewalls, VPCs, TLS |
+| **Security** | Access control, secrets, hardening, patching, least privilege |
+| **Automation** | CI/CD pipelines and scripting to remove repetitive manual work |
+| **Monitoring** | Metrics, logs, alerts, and responding when things break |
+| **Cost Control** | Right-sizing resources and keeping cloud spend under control |
 
-You won't master all of these in 30 days — but you will understand each one well enough to contribute from Day 1 on the job.
+You won't master all six in 30 days — but you'll understand each well enough to contribute from Day 1 on the job.
 
 ### Why Vagrant?
 

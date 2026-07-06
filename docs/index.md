@@ -1,16 +1,18 @@
 # DevOps Month
 
-> A hands-on, 30-day remote DevOps course — taught by [Balman Rawat](https://balmanrawat.com.np)
+> A hands-on, 30-day remote DevOps course
 
 Welcome. This is not a lecture series. Every session is built around doing things — spinning up servers, writing scripts, deploying apps, debugging real issues. The theory is here to support the practice, not the other way around.
 
 By the end of this course, you will have:
 
 - Better knowledge around the DevOps technology landspace
-- Basic knowledge on Cloud
-- Deployed a containerized application through a CI/CD pipeline
-- Set up monitoring and log aggregation with Prometheus, Loki, and Grafana
-- Basic alerts to send alerts in a team communication channel.
+- Basic knowledge on Networking and Cloud
+- Basic understanding of modern day security requirements
+- Hands on experience building/managing containerized workloads
+- Hands on exprience on basics of CI/CD flow
+- Hands on exprience setting up monitoring tools like Prometheus, Loki, and Grafana
+- Better chance for getting entry level job
 
 That is the full picture of what a DevOps engineer does on the job, compressed into 30 days.
 

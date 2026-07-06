@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DevOps Month — Course &amp; DevOps Introduction</title>
+
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5/dist/reveal.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5/dist/theme/white.css" id="theme">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11/styles/github.min.css">
+
+  <style>
+    :root {
+      --indigo: #3f51b5;
+      --indigo-dark: #283593;
+      --accent: #7986cb;
+      --amber: #ffb300;
+      --teal: #009688;
+      --orange: #fb8c00;
+    }
+    .reveal { font-family: "Roboto", "Helvetica Neue", Arial, sans-serif; color: #212121; }
+    .reveal h1, .reveal h2, .reveal h3 { color: var(--indigo-dark); font-weight: 800; letter-spacing: -0.015em; text-transform: none; line-height: 1.12; }
+    .reveal h1 { font-size: 2.6em; }
+    .reveal h2 { font-size: 1.7em; }
+    .reveal a { color: var(--indigo); }
+    .reveal em { color: var(--indigo); font-style: normal; font-weight: 600; }
+    .reveal .subtitle { color: #616161; font-weight: 400; }
+    .reveal ul { display: inline-block; text-align: left; }
+    .reveal li { margin: 0.25em 0; }
+    .reveal section img { border: none; box-shadow: none; }
+
+    /* Inverted (dark indigo) slides */
+    .reveal section.invert, .reveal section.invert h1, .reveal section.invert h2,
+    .reveal section.invert h3, .reveal section.invert p, .reveal section.invert li { color: #fff !important; }
+    .reveal section.invert em { color: var(--amber); }
+    .reveal section.invert .subtitle { color: #c5cae9; }
+    .reveal section.invert a { color: var(--amber); }
+
+    .reveal .pill {
+      display: inline-block; background: var(--amber); color: #3e2723;
+      padding: 0.2em 0.85em; border-radius: 999px; font-size: 0.45em;
+      letter-spacing: 0.12em; text-transform: uppercase; font-weight: 700; vertical-align: middle;
+    }
+    .reveal .pill.plain { background: var(--indigo); color: #fff; }
+
+    .reveal table { font-size: 0.72em; }
+    .reveal table th { background: var(--indigo); color: #fff; }
+    .reveal table td, .reveal table th { padding: 0.4em 0.8em; }
+
+    .reveal .mono {
+      font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.62em;
+      background: rgba(255,255,255,0.08); border-radius: 10px; padding: 0.9em 1.1em;
+    }
+    .reveal section:not(.invert) .mono { background: #f4f4f8; color: #37474f; }
+
+    .reveal .muted { color: #9e9e9e; font-size: 0.8em; }
+    .reveal .big { font-size: 1.9em; font-weight: 800; color: var(--amber); line-height: 1.05; }
+    .reveal .fact {
+      background: rgba(255,255,255,0.10); border-left: 5px solid var(--amber);
+      border-radius: 8px; padding: 0.7em 1em; font-size: 0.8em; text-align: left;
+    }
+    .reveal section:not(.invert) .fact { background: #fff8e1; }
+    .reveal .ref {
+      font-size: 0.62em; color: #607d8b; margin-top: 0.7em;
+    }
+    .reveal section.invert .ref { color: #c5cae9; }
+    .reveal .card {
+      background: #f4f4f8; border-left: 4px solid var(--indigo);
+      border-radius: 8px; padding: 0.6em 0.95em; font-size: 0.82em; text-align: left;
+    }
+    .reveal .two-col { display: flex; gap: 1.4em; align-items: flex-start; }
+    .reveal .two-col > div { flex: 1; }
+    .reveal .footer { position: fixed; bottom: 12px; left: 18px; font-size: 14px; color: #bdbdbd; z-index: 5; }
+    .reveal .timeline { text-align: left; font-size: 0.8em; list-style: none; margin-left: 0; }
+    .reveal .yr { display: inline-block; min-width: 3.2em; font-weight: 800; color: var(--indigo); }
+    .reveal .welcome-emoji { font-size: 1.4em; }
+  </style>
+</head>
+<body>
+  <div class="reveal">
+    <div class="slides">
+
+      <!-- 1 · WELCOME BANNER -->
+      <section class="invert" data-background-gradient="linear-gradient(135deg, #283593 0%, #3f51b5 60%, #5c6bc0 100%)">
+        <p class="welcome-emoji">👋</p>
+        <span class="pill">Welcome</span>
+        <h1 style="margin-top:0.35em; font-size:2.9em;">DevOps Month</h1>
+        <p class="subtitle" style="font-size:1.15em;">A hands-on journey from the terminal to production</p>
+        <aside class="notes">Warm welcome. Introduce yourself in one line, thank them for showing up, set the vibe: this is hands-on, we build real things. Keep it short — energy over information.</aside>
+      </section>
+
+      <!-- 2 · OBJECTIVE -->
+      <section>
+        <span class="pill plain">Objective</span>
+        <h2 style="margin-top:0.35em;">By the end of this course, you'll have</h2>
+        <ul style="font-size:0.85em;">
+          <li>A clear map of the <em>DevOps landscape</em></li>
+          <li><em>Networking &amp; Cloud</em> fundamentals</li>
+          <li>A grasp of modern <em>security</em> basics</li>
+          <li>Hands-on experience with <em>containers</em></li>
+          <li>The basics of the <em>CI/CD</em> flow</li>
+          <li><em>Monitoring &amp; logging</em> skills — Prometheus, Loki, Grafana</li>
+          <li>A better chance at an <em>entry-level job</em></li>
+        </ul>
+        <aside class="notes">Every point completes the lead-in "…you'll have ___". Read as outcomes, not topics. End on the job outcome — that's why most of them are here.</aside>
+      </section>
+
+      <!-- 3 · WHERE DEVOPS CAME FROM -->
+      <section>
+        <h2>Where DevOps came from</h2>
+        <ul class="timeline">
+          <li><span class="yr">2001</span> The <strong>Agile Manifesto</strong> — software gets fast &amp; iterative... but <em>operations</em> is left behind</li>
+          <li class="fragment"><span class="yr">2009</span> Flickr's landmark talk: <em>"10+ Deploys per Day — Dev &amp; Ops Cooperation"</em> — the first big public case for bringing them together</li>
+          <li class="fragment"><span class="yr">2009</span> Patrick Debois hosts the first <strong>DevOpsDays</strong> in Ghent, Belgium</li>
+          <li class="fragment"><span class="yr">today</span> A global movement, culture, and career path</li>
+        </ul>
+        <div class="fact fragment" style="margin-top:0.6em;">
+          🐦 <strong>Fun fact:</strong> the word <em>"DevOps"</em> was essentially born as a <strong>Twitter hashtag</strong> — Debois needed a short conference name, shortened "Development + Operations," and tweeted <code>#devops</code>. It stuck.
+        </div>
+        <p class="ref">📺 Reference — the first major discussion on Dev + Ops collaboration:
+          <a href="https://www.youtube.com/watch?v=LdOe18KhtT4" target="_blank" rel="noopener">"10+ Deploys per Day", Velocity 2009</a>
+        </p>
+        <aside class="notes">Anchor point: the 2009 Flickr talk (Allspaw &amp; Hammond) is the moment "Dev and Ops working as one" hit the mainstream. Debois is often called the godfather of DevOps. Play a clip of the talk if you have time.</aside>
+      </section>
+
+      <!-- 4 · WORLD BEFORE DEVOPS -->
+      <section>
+        <h2>The world before DevOps</h2>
+        <div class="two-col" style="margin-top:0.4em;">
+          <div>
+            <p class="pill plain">👨‍💻 Developers</p>
+            <ul style="font-size:0.78em;">
+              <li>"It works on my machine."</li>
+              <li>Write code, toss it over the wall</li>
+              <li>Want to ship <em>features fast</em></li>
+            </ul>
+          </div>
+          <div>
+            <p class="pill plain">🛠️ Operations</p>
+            <ul style="font-size:0.78em;">
+              <li>"Your code broke my servers."</li>
+              <li>Paged at 3 AM, then blamed</li>
+              <li>Want things <em>stable — don't touch it</em></li>
+            </ul>
+          </div>
+        </div>
+        <p class="fragment" style="margin-top:0.8em; font-size:0.9em;">Between them stood the <em>"Wall of Confusion"</em> — releases were rare, risky, and painful.</p>
+        <aside class="notes">Two teams, opposite incentives, a wall between. Optional: tell a quick 3AM-outage story to make the pain visceral.</aside>
+      </section>
+
+      <!-- 5 · DEVOPS CULTURE -->
+      <section class="invert" data-background-color="#3f51b5">
+        <span class="pill">The heart of it</span>
+        <h2 style="color:#fff; margin-top:0.4em;">DevOps is culture first</h2>
+        <div class="two-col" style="margin-top:0.5em;">
+          <div>
+            <ul style="font-size:0.76em;">
+              <li>🤝 <strong>Collaboration</strong> — one team, shared ownership</li>
+              <li>⚙️ <strong>Automation</strong> — done twice? script it</li>
+              <li>🚀 <strong>Continuous delivery</strong> — small, frequent, boring releases</li>
+            </ul>
+          </div>
+          <div>
+            <ul style="font-size:0.76em;">
+              <li>👀 <strong>Observability</strong> — can't fix what you can't see</li>
+              <li>🔁 <strong>Feedback loops</strong> — learn fast, fix fast</li>
+            </ul>
+          </div>
+        </div>
+        <p class="fragment big" style="margin-top:0.6em;">≈ 80% culture, 20% tools</p>
+        <aside class="notes">The tools are the easy part. The mindset — shared responsibility, automate everything, make releases a non-event — is what makes it DevOps.</aside>
+      </section>
+
+      <!-- 6 · HOW FAST IS FAST -->
+      <section class="invert" data-background-color="#283593">
+        <span class="pill">Why it matters</span>
+        <h2 style="color:#fff; margin-top:0.4em;">How fast is "fast"?</h2>
+        <p class="fragment big" style="margin-top:0.5em;">Amazon deploys to production<br>every&nbsp;~11.6&nbsp;seconds.</p>
+        <p class="fragment subtitle" style="margin-top:0.8em;">(2011 — thousands of deploys an hour, at peak.)</p>
+        <p class="fragment" style="font-size:0.85em; margin-top:0.6em;">The "before" world shipped… <em>once a quarter</em>, and prayed.</p>
+        <aside class="notes">Let the stat breathe. The point isn't the number — it's that deploys became so safe and automated they stopped being scary events. This sets up "why" before we formally define DevOps.</aside>
+      </section>
+
+      <!-- 7 · DEFINITION -->
+      <section>
+        <span class="pill plain">So… what IS it?</span>
+        <h2 style="margin-top:0.4em;">Definition</h2>
+        <p style="font-size:1.0em;">DevOps is a <em>culture</em> and set of <em>practices</em> that bridge software <strong>development</strong> and <strong>operations</strong> — so teams ship <strong>faster</strong>, <strong>more often</strong>, and <strong>more reliably</strong>.</p>
+        <div class="card" style="margin-top:0.7em;">
+          Not a tool. Not a single job title. A way of working where the people who <em>build</em> it also help <em>run</em> it.
+        </div>
+        <aside class="notes">Now that they've seen the history and the values, the definition lands instead of feeling abstract.</aside>
+      </section>
+
+      <!-- 8 · VENN DIAGRAM -->
+      <section>
+        <h2 style="margin-bottom:0.1em;">One team, one goal</h2>
+        <svg viewBox="0 0 620 430" style="width:70%; max-width:620px; height:auto;" role="img" aria-label="Venn diagram of Development, Operations and QA overlapping as DevOps">
+          <g fill-opacity="0.55" stroke-width="2.5">
+            <circle cx="245" cy="185" r="150" fill="#3f51b5" stroke="#283593"/>
+            <circle cx="375" cy="185" r="150" fill="#009688" stroke="#00695c"/>
+            <circle cx="310" cy="300" r="150" fill="#fb8c00" stroke="#e65100"/>
+          </g>
+          <!-- set labels -->
+          <text x="150" y="140" text-anchor="middle" font-size="23" font-weight="800" fill="#283593">Development</text>
+          <text x="470" y="140" text-anchor="middle" font-size="23" font-weight="800" fill="#00695c">Operations</text>
+          <text x="310" y="400" text-anchor="middle" font-size="23" font-weight="800" fill="#e65100">QA</text>
+          <!-- center DevOps pill -->
+          <rect x="242" y="205" width="136" height="46" rx="23" fill="#ffffff" stroke="#283593" stroke-width="2"/>
+          <text x="310" y="236" text-anchor="middle" font-size="26" font-weight="800" fill="#283593">DevOps</text>
+        </svg>
+        <p class="muted" style="margin-top:0.2em; font-size:0.8em;">DevOps unifies the people who <strong>build</strong>, <strong>run</strong>, and <strong>safeguard</strong> software into one shared responsibility.</p>
+        <aside class="notes">The whole idea in one picture: Dev, Ops, and QA stop being handoff stages and become one overlapping team. DevOps lives in the intersection.</aside>
+      </section>
+
+      <!-- 9 · WHAT A DEVOPS PERSON DOES -->
+      <section>
+        <h2>What a DevOps engineer manages</h2>
+        <p class="muted" style="margin-top:-0.2em; font-size:0.8em;">Almost every responsibility falls under <em>six key scopes</em></p>
+        <div class="two-col" style="margin-top:0.5em;">
+          <div>
+            <ul style="font-size:0.82em; list-style:none; margin-left:0;">
+              <li>🏗️ <strong>Infrastructure</strong> — servers, containers, cloud</li>
+              <li>🌐 <strong>Networking</strong> — DNS, load balancers, firewalls</li>
+              <li>🔒 <strong>Security</strong> — access, secrets, hardening</li>
+            </ul>
+          </div>
+          <div>
+            <ul style="font-size:0.82em; list-style:none; margin-left:0;">
+              <li>⚙️ <strong>Automation</strong> — CI/CD, scripting</li>
+              <li>📈 <strong>Monitoring</strong> — metrics, logs, alerts</li>
+              <li>💰 <strong>Cost Control</strong> — right-sizing, cloud spend</li>
+            </ul>
+          </div>
+        </div>
+        <aside class="notes">This is the mental model for the whole role: whatever the tool, it maps to one of these six scopes — Infrastructure, Networking, Security, Automation, Monitoring, Cost Control. The 30-day course touches all six.</aside>
+      </section>
+
+      <!-- 10 · CONCLUSION (minimal) -->
+      <section class="invert" data-background-gradient="linear-gradient(135deg, #283593 0%, #3f51b5 100%)">
+        <h1 style="color:#fff;">Let's go. 🚀</h1>
+        <aside class="notes">Minimal close. Pause, invite questions, then move into Week 1 · Day 01.</aside>
+      </section>
+
+    </div>
+  </div>
+
+  <div class="footer">DevOps Month · Introduction</div>
+
+  <script src="https://cdn.jsdelivr.net/npm/reveal.js@5/dist/reveal.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/reveal.js@5/plugin/highlight/highlight.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/reveal.js@5/plugin/notes/notes.js"></script>
+  <script>
+    Reveal.initialize({
+      hash: true,
+      slideNumber: 'c/t',
+      transition: 'slide',
+      backgroundTransition: 'fade',
+      controls: true,
+      progress: true,
+      center: true,
+      plugins: [ RevealHighlight, RevealNotes ]
+    });
+  </script>
+</body>
+</html>
