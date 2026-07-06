@@ -6,10 +6,11 @@ Welcome. This is not a lecture series. Every session is built around doing thing
 
 By the end of this course, you will have:
 
-- Provisioned a cloud server on AWS
+- Better knowledge around the DevOps technology landspace
+- Basic knowledge on Cloud
 - Deployed a containerized application through a CI/CD pipeline
 - Set up monitoring and log aggregation with Prometheus, Loki, and Grafana
-- Sent real alerts to a communication channel
+- Basic alerts to send alerts in a team communication channel.
 
 That is the full picture of what a DevOps engineer does on the job, compressed into 30 days.
 
@@ -39,21 +40,6 @@ Software you'll need before Day 1:
 - A [GitHub](https://github.com) account
 - [VirtualBox](https://www.virtualbox.org/) or [VMware](https://www.vmware.com/) (for Vagrant labs)
 
----
-
-## Course Rules
-
-!!! warning "Attendance"
-    Missing more than **5 sessions** means you cannot continue the course.
-
-!!! info "Assignments"
-    Complete each day's assignment **before** the next session. If you're stuck, ask early — in Discord or as a GitHub Issue. Don't skip it silently.
-
-!!! tip "Mindset"
-    This is a **50-50 partnership**. Content and guidance comes from the instructor. Effort and consistency comes from you. Both are required.
-
----
-
 ## The End Goal
 
 ```
@@ -80,8 +66,7 @@ Discord / Slack Notification
 
 ## Get Started
 
-1. Fork this repository to your GitHub account
-2. Read the [Schedule](schedule.md) to understand the 30-day plan
-3. Start with [Day 1](week-01/day-01.md)
+1. Read the [Schedule](schedule.md) to understand the 30-day plan
+2. Start with [Day 1](week-01/day-01.md)
 
 Questions? Open a [GitHub Issue](https://github.com/rbalman/devops-month/issues) or ask in Discord.

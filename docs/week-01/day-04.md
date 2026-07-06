@@ -1,197 +1,256 @@
-# Day 04 · Linux Basics III — Package Management & Services
+# Day 04 · Users, Groups & Permissions
 
 ## Learning Objectives
 
-- Install, remove, and manage software packages
-- Start, stop, enable, and inspect system services with systemd
-- Write and run your own systemd service unit
+- Understand why Linux is multi-user and how users and groups are modeled
+- Read and modify ownership and permissions with `chmod` and `chown`
+- Translate between symbolic (`rwx`) and numeric (`755`) permissions
+- Recognize advanced controls: special bits, ACLs, and file attributes
 
 ---
 
-## Theory · ~20 min
+## Theory · ~25 min
 
-### Package Managers
+### Why users and groups exist
 
-Every Linux distribution has a package manager — a tool for installing software from trusted repositories. No need to download `.exe` files or run installers.
+Unix was built in the 1970s for **shared** machines — one physical computer used by many people at once. That shaped a permission model that's still exactly what we need today, because a modern Linux **server** is also shared: by human admins, by service accounts (`www-data`, `postgres`), and by automated pipelines.
 
-| Distro | Package Manager | Install Command |
-|---|---|---|
-| Ubuntu/Debian | `apt` | `sudo apt install nginx` |
-| CentOS/RHEL | `yum` / `dnf` | `sudo dnf install nginx` |
-| Arch | `pacman` | `sudo pacman -S nginx` |
-| macOS | `brew` | `brew install nginx` |
+The goals are the same as fifty years ago:
 
-`apt` is what you'll use in this course (Ubuntu-based labs).
+- **Isolation** — your files are yours; another user can't read or wreck them
+- **Least privilege** — a web server runs as an unprivileged account, so a compromise can't own the whole box
+- **Accountability** — actions are tied to an identity (`/var/log/auth.log`)
 
-Key operations:
+### The user model
 
-```bash
-sudo apt update               # refresh the package index
-sudo apt upgrade              # upgrade installed packages
-sudo apt install <package>    # install
-sudo apt remove <package>     # uninstall (keeps config)
-sudo apt purge <package>      # uninstall + delete config
-apt search <keyword>          # search available packages
-apt show <package>            # show details about a package
-dpkg -l | grep nginx          # list installed packages matching nginx
-```
-
-### systemd and Services
-
-Modern Linux systems use **systemd** as the init system — it starts and manages all services (background processes) on your machine.
-
-A **service** (also called a daemon) is a process that runs in the background. Examples: `nginx` (web server), `sshd` (SSH server), `cron` (scheduled jobs).
+Every user has a numeric **UID**; every group a **GID**. Names are just a friendly mapping.
 
 ```bash
-systemctl start nginx         # start a service
-systemctl stop nginx          # stop a service
-systemctl restart nginx       # stop + start
-systemctl reload nginx        # reload config without restart
-systemctl status nginx        # show current state and recent logs
-systemctl enable nginx        # start automatically on boot
-systemctl disable nginx       # don't start on boot
-systemctl list-units --type=service   # all running services
+whoami            # current username
+id                # your UID, primary GID, and all group memberships
+cat /etc/passwd   # all user accounts
+cat /etc/group    # all groups
 ```
 
-### Service Unit Files
+Each line in `/etc/passwd` has 7 colon-separated fields:
 
-Services are defined by **unit files** in `/etc/systemd/system/` or `/lib/systemd/system/`. You can write your own.
-
-```ini
-[Unit]
-Description=My App
-After=network.target
-
-[Service]
-ExecStart=/usr/bin/python3 /opt/myapp/app.py
-Restart=always
-User=www-data
-
-[Install]
-WantedBy=multi-user.target
+```
+username : x : UID : GID : comment : home_dir : login_shell
+vagrant  : x :1000 :1000 :         :/home/vagrant:/bin/bash
 ```
 
-Understanding unit files is important — you'll write them when deploying custom apps.
+The `x` means the real password hash lives in `/etc/shadow`, readable only by root.
+
+- **root** (UID 0) is the superuser — it bypasses permission checks. You escalate temporarily with `sudo` rather than logging in as root.
+- **System accounts** (low UIDs, e.g. `www-data`, `sshd`) run services, not people. They usually have `/usr/sbin/nologin` as their shell so nobody can log in as them.
+- Every user has one **primary group** and can belong to many **supplementary groups** (e.g. `sudo`, `docker`).
+
+Managing them:
+
+```bash
+sudo useradd -m -s /bin/bash alice   # create user with home + bash
+sudo passwd alice                    # set password
+sudo groupadd devs                   # create a group
+sudo usermod -aG devs alice          # ADD alice to group devs (-a = append!)
+sudo userdel -r alice                # delete user and home
+```
+
+!!! warning "Always use `-aG`, never bare `-G`"
+    `usermod -G devs alice` *replaces* all of alice's supplementary groups with just `devs` — a classic way to accidentally remove someone from `sudo`. `-aG` **appends**.
+
+### Permissions: reading `rwxr-xr--`
+
+Every file carries permissions for three classes: **owner (user)**, **group**, and **others**.
+
+```
+-rwxr-xr--  1  alice  devs  1234  Jun 01  deploy.sh
+│└─┬─┘└─┬─┘└─┬─┘
+│  u    g    o
+└ type (- file, d dir, l symlink)
+```
+
+Each class has three bits:
+
+| Symbol | Meaning | Value | On a directory |
+|---|---|---|---|
+| `r` | read | 4 | list contents |
+| `w` | write | 2 | create/delete entries |
+| `x` | execute | 1 | enter / traverse (`cd`) |
+
+So `rwxr-xr--` = **754** (owner 7, group 5, others 4).
+
+### chmod — change permissions
+
+```bash
+# Numeric (absolute)
+chmod 755 script.sh      # rwxr-xr-x
+chmod 644 config.txt     # rw-r--r--
+chmod 600 secret.key     # rw------- (owner only)
+
+# Symbolic (relative)
+chmod +x script.sh       # add execute for all classes
+chmod u+x,go-w file      # owner +execute, group/other -write
+chmod -R g+w shared/     # recurse into a directory tree
+```
+
+### chown — change ownership
+
+```bash
+sudo chown alice file.txt          # change owner
+sudo chown alice:devs file.txt     # change owner AND group
+sudo chown :devs file.txt          # change group only
+sudo chown -R www-data:www-data /var/www   # recurse
+```
+
+### Advanced concepts
+
+You won't reach for these daily, but you must recognize them — they explain "why can't I access this?" mysteries and show up in security reviews.
+
+#### Special permission bits
+
+Beyond `rwx` there are three special bits, shown as a 4th (leading) octal digit:
+
+| Bit | Octal | On a file | On a directory |
+|---|---|---|---|
+| **setuid** | 4000 | run as the file's **owner** (e.g. `passwd` runs as root) | — |
+| **setgid** | 2000 | run as the file's **group** | new files inherit the dir's group |
+| **sticky** | 1000 | — | only the **owner** of a file can delete it (used on `/tmp`) |
+
+```bash
+ls -l /usr/bin/passwd     # -rwsr-xr-x  → the 's' is setuid
+ls -ld /tmp               # drwxrwxrwt  → the 't' is the sticky bit
+chmod 2775 shared/        # setgid: files created inside inherit group
+chmod +t shared/          # add sticky bit
+```
+
+An `s` where an `x` would be means the setuid/setgid bit is on. Setuid root binaries are a classic privilege-escalation target — audit them with `find / -perm -4000`.
+
+#### ACLs (Access Control Lists)
+
+Standard permissions only express **one** user, **one** group, and everyone else. When you need "user bob can read this *and* group audit can read it too, but nobody else," use **ACLs**:
+
+```bash
+getfacl report.txt                  # view ACLs
+setfacl -m u:bob:r report.txt       # grant bob read
+setfacl -m g:audit:rw report.txt    # grant group audit read+write
+setfacl -x u:bob report.txt         # remove bob's entry
+```
+
+A `+` at the end of `ls -l` permissions (`-rw-r--r--+`) means extra ACLs exist beyond what the basic bits show.
+
+#### File attributes
+
+Attributes are a layer *beneath* permissions, enforced by the filesystem itself — even root obeys them until they're removed:
+
+```bash
+lsattr file.txt           # list attributes
+sudo chattr +i file.txt   # IMMUTABLE: nobody can modify/delete/rename it
+sudo chattr -i file.txt   # remove immutability
+sudo chattr +a app.log    # APPEND-ONLY: can add but not overwrite (great for logs)
+```
+
+`chattr +i` on a critical config is a cheap way to prevent accidental (or scripted) changes.
 
 ---
 
 ## Lab · ~50 min
 
-### Step 1 — Practice with apt
+Work **inside your Vagrant VM** (`vagrant ssh`).
+
+### Step 1 — Inspect the current model
 
 ```bash
-# Update package list
-sudo apt update
-
-# Install some useful tools
-sudo apt install -y htop tree jq net-tools
-
-# Verify
-htop --version
-tree --version
-jq --version
-
-# See what was installed and where
-which htop
-dpkg -L htop | head -10     # files installed by htop package
-
-# Remove a package
-sudo apt remove tree
-tree --version               # should fail now
-
-# Reinstall
-sudo apt install -y tree
+whoami; id
+cut -d: -f1,7 /etc/passwd | grep -v "nologin\|false"   # real login users
+grep sudo /etc/group                                    # who can sudo
 ```
 
-### Step 2 — Install and manage nginx
+### Step 2 — Create users and a shared group
 
 ```bash
-sudo apt install -y nginx
+sudo groupadd webdev
+sudo useradd -m -s /bin/bash alice
+sudo useradd -m -s /bin/bash bob
+sudo usermod -aG webdev alice
+sudo usermod -aG webdev bob
 
-# Check status immediately after install
-systemctl status nginx
-
-# View the default page
-curl http://localhost
-
-# Stop the service
-sudo systemctl stop nginx
-curl http://localhost        # should fail now
-
-# Start it again
-sudo systemctl start nginx
-curl http://localhost        # works again
-
-# Enable auto-start on reboot
-sudo systemctl enable nginx
+id alice
+id bob
 ```
 
-### Step 3 — Read service logs
+### Step 3 — Permissions in practice
 
 ```bash
-# View nginx logs with journalctl
-sudo journalctl -u nginx
-sudo journalctl -u nginx -n 50        # last 50 lines
-sudo journalctl -u nginx --since "10 minutes ago"
-sudo journalctl -u nginx -f           # follow live (Ctrl+C to stop)
+cd ~ && mkdir -p permlab && cd permlab
 
-# Also check file-based logs
-sudo tail -f /var/log/nginx/access.log
-sudo tail -f /var/log/nginx/error.log
-```
-
-### Step 4 — Write a custom service
-
-Create a simple Python HTTP server and run it as a systemd service:
-
-```bash
-# Create the app
-sudo mkdir -p /opt/myapp
-sudo tee /opt/myapp/server.py << 'EOF'
-import http.server
-import socketserver
-
-PORT = 8080
-Handler = http.server.SimpleHTTPRequestHandler
-
-with socketserver.TCPServer(("", PORT), Handler) as httpd:
-    print(f"Serving on port {PORT}")
-    httpd.serve_forever()
+cat > deploy.sh << 'EOF'
+#!/bin/bash
+echo "Deploying..."
 EOF
 
-# Create the service unit file
-sudo tee /etc/systemd/system/myapp.service << 'EOF'
-[Unit]
-Description=My Python HTTP Server
-After=network.target
+ls -l deploy.sh          # no execute bit yet
+./deploy.sh              # Permission denied
 
-[Service]
-ExecStart=/usr/bin/python3 /opt/myapp/server.py
-WorkingDirectory=/opt/myapp
-Restart=always
-User=www-data
+chmod +x deploy.sh
+./deploy.sh              # works now
 
-[Install]
-WantedBy=multi-user.target
-EOF
+chmod 600 deploy.sh      # lock to owner only
+ls -l deploy.sh
 
-# Reload systemd to pick up the new unit file
-sudo systemctl daemon-reload
-
-# Start and enable
-sudo systemctl start myapp
-sudo systemctl enable myapp
-sudo systemctl status myapp
-
-# Test it
-curl http://localhost:8080
+# Translate: what is 640 in rwx? Verify:
+chmod 640 deploy.sh
+ls -l deploy.sh          # -rw-r-----
 ```
 
-### Step 5 — Verify on reboot (optional)
+### Step 4 — Ownership and a shared directory
 
 ```bash
-# Check what's enabled to start on boot
-systemctl list-unit-files --type=service | grep enabled
+sudo mkdir -p /srv/webdev
+sudo chown root:webdev /srv/webdev
+sudo chmod 2775 /srv/webdev      # rwxrwsr-x → setgid
+
+ls -ld /srv/webdev               # note the 's' in group perms
+
+# Files created here inherit the webdev group
+sudo -u alice bash -c 'touch /srv/webdev/from-alice.txt'
+ls -l /srv/webdev                # group is webdev, not alice
+```
+
+### Step 5 — Special bits in the wild
+
+```bash
+ls -l /usr/bin/passwd            # setuid root
+ls -ld /tmp                      # sticky bit (t)
+find /usr/bin -perm -4000 2>/dev/null   # all setuid binaries
+```
+
+### Step 6 — ACLs
+
+```bash
+cd ~/permlab
+echo "quarterly numbers" > report.txt
+chmod 640 report.txt
+
+# Give bob read access WITHOUT changing owner/group/other
+sudo setfacl -m u:bob:r report.txt
+getfacl report.txt
+ls -l report.txt                 # note the trailing '+'
+
+sudo -u bob cat report.txt       # bob can read it now
+```
+
+### Step 7 — File attributes
+
+```bash
+echo "do not change" | sudo tee important.conf
+sudo chattr +i important.conf
+lsattr important.conf
+
+sudo rm -f important.conf        # fails — even with sudo!
+echo "x" | sudo tee -a important.conf   # fails too
+
+sudo chattr -i important.conf    # remove the lock
+sudo rm -f important.conf        # now it works
 ```
 
 ---
@@ -200,14 +259,12 @@ systemctl list-unit-files --type=service | grep enabled
 
 In `my-progress/day-04.md`:
 
-1. What is the difference between `apt remove` and `apt purge`?
-2. What does `Restart=always` in a systemd unit file do? Why is it useful for production services?
-3. Modify the `myapp.service` to run as your own user instead of `www-data`. Restart the service and confirm it works.
-4. Use `journalctl` to find the exact time nginx started on your machine today.
+1. **Reading perms:** A file shows `-rw-r-----`. Give the numeric form, and say exactly who can read it, who can write it, and who is locked out. Then explain in one line why `usermod -aG` is safer than `usermod -G`.
+2. **Design a shared dropbox:** Create a directory two users can both add files to, where each user can delete **only their own** files (not each other's). Choose the right combination of ownership, group, and special bits (setgid + sticky), then prove it works by having a second user try to delete the first user's file. Show your commands and the result.
 
 ```bash
 git add my-progress/day-04.md
-git commit -m "day-04: package management and services"
+git commit -m "day-04: users, groups, permissions, ACLs, attributes"
 git push origin main
 ```
 
@@ -215,6 +272,7 @@ git push origin main
 
 ## Further Reading
 
-- `man systemctl`, `man journalctl`
-- [systemd unit file options reference](https://www.freedesktop.org/software/systemd/man/systemd.service.html)
-- [Understanding apt vs apt-get](https://itsfoss.com/apt-vs-apt-get-difference/)
+- `man chmod`, `man chown`, `man usermod`, `man setfacl`, `man chattr`
+- [chmod-calculator.com](https://chmod-calculator.com/) — visualize numeric ↔ symbolic
+- [Understanding /etc/passwd](https://www.cyberciti.biz/faq/understanding-etcpasswd-file-format/)
+- [ArchWiki: File permissions and attributes](https://wiki.archlinux.org/title/File_permissions_and_attributes)

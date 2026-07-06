@@ -1,187 +1,320 @@
-# Day 07 · Git & GitHub
+# Day 07 · Shell Scripting II — Decisions, Loops & Functions
+
+> Yesterday your scripts ran straight through, top to bottom. Today they learn to **think**: choose between actions, repeat work, and organize into reusable functions that take arguments. At the very end, a quick taste of running scripts automatically with **cron**.
 
 ## Learning Objectives
 
-- Understand Git's core model: commits, branches, and the working tree
-- Use Git for day-to-day version control
-- Collaborate via GitHub: pull requests, issues, and code review
+- Make decisions with `if`/`elif`/`else` and `case`
+- Repeat work with `for` and `while` loops
+- Accept **arguments** passed to your script
+- Organize code into reusable **functions**
+- (Awareness) schedule a script with **cron**
 
 ---
 
 ## Theory · ~20 min
 
-### What is Git?
+### One good habit first
 
-Git is a **distributed version control system**. It tracks changes to files over time and lets multiple people work on the same codebase without overwriting each other's work.
+Now that scripts get bigger, start them with this safety line. You don't need to master it — just include it:
 
-Every DevOps engineer uses Git constantly — not just for application code, but for infrastructure code (Terraform), configuration (Ansible), pipelines (GitHub Actions), and documentation.
-
-### The Three Areas
-
-```
-Working Directory → Staging Area (Index) → Repository (.git)
-      (edit files)         (git add)            (git commit)
+```bash
+#!/bin/bash
+set -euo pipefail    # stop on errors and undefined variables instead of charging ahead
 ```
 
-- **Working Directory**: your files as you see them
-- **Staging Area**: changes you've selected to include in the next commit
-- **Repository**: the full history of commits
+### Conditionals — making decisions
 
-### Key Concepts
+An `if` runs a block only when a test is true:
 
-| Concept | What it is |
+```bash
+if [[ -f /etc/passwd ]]; then
+  echo "the file exists"
+else
+  echo "the file is missing"
+fi
+```
+
+The `[[ ... ]]` is the **test**. Common ones (many use the operators from Day 6):
+
+| Test | True when |
 |---|---|
-| **Commit** | A snapshot of staged changes with a message |
-| **Branch** | A pointer to a commit; diverges from main to isolate work |
-| **HEAD** | Where you currently are in the history |
-| **Remote** | A copy of the repo on another machine (GitHub) |
-| **Clone** | Download a repo from a remote |
-| **Push** | Send your commits to the remote |
-| **Pull** | Fetch + merge changes from the remote |
-| **Merge** | Combine two branches |
-| **Pull Request** | A GitHub mechanism to propose merging a branch |
+| `-f path` | it's a file |
+| `-d path` | it's a directory |
+| `-z "$s"` | string is empty |
+| `-n "$s"` | string is non-empty |
+| `$a -gt $b` | number a > b (`-lt -eq -ge …`) |
+| `"$a" == "$b"` | strings are equal |
 
-### Good Commit Messages
+For many possible values, `case` is cleaner than a stack of `elif`s:
 
-```
-# Bad
-fix stuff
-update
-changes
-
-# Good
-day-05: add disk usage alert script
-fix: nginx config missing server_name for port 443
-feat: add Terraform module for VPC creation
+```bash
+case "$1" in
+  start) echo "starting" ;;
+  stop)  echo "stopping" ;;
+  *)     echo "unknown option" ;;    # * = anything else
+esac
 ```
 
-Use the present tense, be specific, and reference what changed and why.
+### Loops — repeating work
+
+A `for` loop repeats once per item in a list:
+
+```bash
+for i in 1 2 3; do
+  echo "number $i"
+done
+
+for f in *.txt; do        # loop over files
+  echo "found $f"
+done
+```
+
+A `while` loop repeats as long as a condition holds:
+
+```bash
+n=1
+while [[ $n -le 3 ]]; do
+  echo "count $n"
+  n=$(( n + 1 ))
+done
+```
+
+### Arguments — input from the command line
+
+Instead of asking with `read`, scripts can take values on the command line:
+
+```bash
+# ./deploy.sh staging web
+echo "script name: $0"     # ./deploy.sh
+echo "first arg:   $1"     # staging
+echo "second arg:  $2"     # web
+echo "all args:    $@"     # staging web
+echo "how many:    $#"     # 2
+```
+
+Combine arguments with a loop:
+
+```bash
+for name in "$@"; do
+  echo "Hello, $name"
+done
+```
+
+### Functions — organizing and reusing
+
+A **function** is a named block you can call many times. It can take arguments just like a script (`$1`, `$2`, …):
+
+```bash
+greet() {
+  echo "Hello, $1!"
+}
+
+greet Sam        # Hello, Sam!
+greet Alex       # Hello, Alex!
+```
+
+Use `local` for variables that should stay inside the function:
+
+```bash
+add() {
+  local sum=$(( $1 + $2 ))
+  echo "$sum"
+}
+add 3 4          # 7
+```
+
+### Cron — running scripts on a schedule (a taste)
+
+Once you can write a script, you'll often want it to run **automatically** — a nightly backup, a health check every 5 minutes. **Cron** is the classic Unix scheduler for exactly that.
+
+Edit your schedule with `crontab -e`. Each line has 5 time fields, then the command:
+
+```
+┌── minute (0–59)
+│ ┌── hour (0–23)
+│ │ ┌── day of month
+│ │ │ ┌── month
+│ │ │ │ ┌── day of week (0=Sun)
+│ │ │ │ │
+* * * * *  /home/vagrant/scripts/backup.sh
+```
+
+| Schedule | Meaning |
+|---|---|
+| `*/5 * * * *` | every 5 minutes |
+| `0 2 * * *` | every day at 02:00 |
+| `0 9 * * 1` | every Monday at 09:00 |
+
+!!! tip "Cron is a big topic — this is just a taste"
+    We're only showing that the power exists. One rule to remember: cron runs with a **minimal environment**, so always use **absolute paths** (`/home/vagrant/scripts/x.sh`, not `~/scripts/x.sh`) and don't rely on your aliases or custom `PATH`.
 
 ---
 
 ## Lab · ~50 min
 
-### Step 1 — Core Git workflow
+Work **inside your Vagrant VM**. Keep scripts in `~/scripts`.
+
+### Step 1 — Your first decision
 
 ```bash
-cd ~/devops-practice
+mkdir -p ~/scripts && cd ~/scripts
 
-# Initialize (already done if you've been committing)
-git init     # only if not already a repo
-git status
-
-# Stage and commit
-echo "learning git" > git-notes.txt
-git status           # shows untracked file
-git add git-notes.txt
-git status           # shows staged
-git commit -m "add git notes file"
-git log --oneline    # see your commit history
-```
-
-### Step 2 — Branching
-
-```bash
-# Create and switch to a new branch
-git checkout -b feature/add-readme
-
-# Make changes
-cat > README.md << 'EOF'
-# DevOps Practice
-
-My hands-on work for the DevOps Month course.
-EOF
-
-git add README.md
-git commit -m "add README"
-
-# See branches
-git branch
-
-# Switch back to main
-git checkout main
-ls                   # README.md is gone (it's on the feature branch)
-
-# Merge the branch
-git merge feature/add-readme
-ls                   # README.md is back
-
-# Delete the branch (cleanup)
-git branch -d feature/add-readme
-```
-
-### Step 3 — Work with GitHub
-
-```bash
-# Add your fork as the remote (already done on day 01)
-git remote -v
-
-# Push your local main branch to GitHub
-git push origin main
-
-# Simulate a teammate's change by editing on GitHub:
-# 1. Go to your fork on github.com
-# 2. Edit README.md directly in the browser
-# 3. Commit the change on GitHub
-
-# Pull that change down locally
-git pull origin main
-git log --oneline   # the browser commit should appear
-```
-
-### Step 4 — Pull Request workflow
-
-```bash
-# Create a branch for a new feature
-git checkout -b feature/day07-lab
-
-# Add a meaningful file
-mkdir -p my-progress/scripts
-cat > my-progress/scripts/git_log_pretty.sh << 'EOF'
+cat > check.sh << 'EOF'
 #!/bin/bash
-# Show a pretty git log
-git log --oneline --graph --decorate --all
+set -euo pipefail
+
+if [[ -d /etc ]]; then
+  echo "/etc is a directory"
+else
+  echo "/etc is missing?!"
+fi
 EOF
-chmod +x my-progress/scripts/git_log_pretty.sh
 
-git add my-progress/
-git commit -m "day-07: add pretty git log script"
-git push origin feature/day07-lab
+chmod +x check.sh
+./check.sh
 ```
 
-Now open GitHub, go to your fork, and create a Pull Request from `feature/day07-lab` → `main`. Add a description. Merge it. Then pull the merged changes locally:
+### Step 2 — A `case` mini-menu
 
 ```bash
-git checkout main
-git pull origin main
+cat > svc.sh << 'EOF'
+#!/bin/bash
+set -euo pipefail
+
+case "${1:-}" in
+  start)  echo "starting the app" ;;
+  stop)   echo "stopping the app" ;;
+  status) echo "app is running (pretend)" ;;
+  *)      echo "usage: $0 {start|stop|status}" ;;
+esac
+EOF
+
+chmod +x svc.sh
+./svc.sh start
+./svc.sh status
+./svc.sh
 ```
 
-### Step 5 — Useful daily Git commands
+### Step 3 — A `for` loop
 
 ```bash
-git diff                    # what changed but not staged
-git diff --staged           # what's staged but not committed
-git log --oneline -10       # last 10 commits
-git show HEAD               # details of latest commit
-git stash                   # temporarily shelve changes
-git stash pop               # restore shelved changes
-git blame README.md         # who last changed each line
+cat > countfiles.sh << 'EOF'
+#!/bin/bash
+set -euo pipefail
+
+for item in /etc/*; do
+  if [[ -d "$item" ]]; then
+    echo "DIR   $item"
+  else
+    echo "FILE  $item"
+  fi
+done
+EOF
+
+chmod +x countfiles.sh
+./countfiles.sh | head
+```
+
+### Step 4 — A `while` loop (countdown)
+
+```bash
+cat > countdown.sh << 'EOF'
+#!/bin/bash
+set -euo pipefail
+
+n=5
+while [[ $n -ge 1 ]]; do
+  echo "$n..."
+  n=$(( n - 1 ))
+done
+echo "Liftoff!"
+EOF
+
+chmod +x countdown.sh
+./countdown.sh
+```
+
+### Step 5 — Arguments
+
+```bash
+cat > greet.sh << 'EOF'
+#!/bin/bash
+set -euo pipefail
+
+if [[ $# -eq 0 ]]; then
+  echo "usage: $0 <name> [name...]"
+  exit 1
+fi
+
+for name in "$@"; do
+  echo "Hello, $name!"
+done
+EOF
+
+chmod +x greet.sh
+./greet.sh Sam Alex Priya
+./greet.sh               # prints usage, exits 1
+```
+
+### Step 6 — A function
+
+```bash
+cat > diskcheck.sh << 'EOF'
+#!/bin/bash
+set -euo pipefail
+
+check() {
+  local used
+  used=$(df / | awk 'NR==2 {gsub("%","",$5); print $5}')
+  if [[ $used -gt 80 ]]; then
+    echo "ALERT: disk ${used}% used"
+  else
+    echo "OK: disk ${used}% used"
+  fi
+}
+
+check
+EOF
+
+chmod +x diskcheck.sh
+./diskcheck.sh
+```
+
+### Step 7 — Schedule it with cron (a taste)
+
+```bash
+mkdir -p ~/logs
+crontab -e        # pick nano (option 1) if asked
+```
+
+Add this line (note the **absolute path**), then save and exit:
+
+```cron
+*/2 * * * * /home/vagrant/scripts/diskcheck.sh >> /home/vagrant/logs/disk.log 2>&1
+```
+
+```bash
+crontab -l                 # confirm it's scheduled
+tail -f ~/logs/disk.log    # wait ~2 min to see it run; Ctrl+C to stop
+
+crontab -e                 # now delete that line and save to clean up
 ```
 
 ---
 
 ## Assignment
 
-In `my-progress/day-07.md`:
+Create these in `my-progress/day-07/` and commit the scripts.
 
-1. What is the difference between `git pull` and `git fetch`?
-2. What happens if two people edit the same line of a file and both try to push? How do you resolve it?
-3. Create a branch called `experiment/test-branch`, commit something to it, then merge it into `main` and delete the branch. Paste the `git log --oneline` output showing the merge.
-4. When would you use `git stash`? Give a real-world scenario.
+1. **`numcheck.sh`** — takes a number as `$1`. If no argument is given, print a usage message and `exit 1`. Otherwise use `if`/`elif`/`else` to say whether it's **positive, negative, or zero**, then use a loop to print the numbers from 1 up to that number.
+2. **`greet-all.sh`** — defines a **function** `greet` that prints `Hello, <name>!`, then loops over **all arguments** and greets each one. If no arguments are given, greet `world`.
+
+*(Optional): schedule one of your scripts with cron to run every 5 minutes, confirm it ran via its log file, then remove the entry. Paste your `crontab -l` into `my-progress/day-07.md`.*
 
 ```bash
-git add my-progress/day-07.md
-git commit -m "day-07: git and github complete"
+git add my-progress/day-07/
+git commit -m "day-07: conditionals, loops, functions, cron"
 git push origin main
 ```
 
@@ -189,7 +322,7 @@ git push origin main
 
 ## Further Reading
 
-- [git - the simple guide](https://rogerdudler.github.io/git-guide/)
-- [Oh Shit, Git!](https://ohshitgit.com/) — what to do when things go wrong
-- [Conventional Commits](https://www.conventionalcommits.org/) — a standard for commit messages
-- [GitHub Skills](https://skills.github.com/) — free interactive GitHub courses
+- [crontab.guru](https://crontab.guru/) — build and read cron schedules interactively
+- [Bash conditionals & loops (GNU manual)](https://www.gnu.org/software/bash/manual/html_node/Conditional-Constructs.html)
+- Run [ShellCheck](https://www.shellcheck.net/) on every script you wrote this week
+- [Beyond the Basics](beyond-the-basics.md) — see "systemd timers" for the modern alternative to cron

@@ -1,260 +1,232 @@
-# Day 06 · Bash Scripting II — Functions, Scripts & Cron
+# Day 06 · Shell Scripting I — Programming Basics
+
+> Days 6 and 7 are your gentle introduction to **programming with the shell** — no prior coding needed. **Today** covers the absolute basics: storing values, printing, reading input, and doing simple math. **Tomorrow** adds decisions, loops, and functions. One small step at a time.
 
 ## Learning Objectives
 
-- Write reusable Bash functions
-- Build a multi-function script with error handling
-- Schedule automated tasks with cron
+- Write and run your very first shell scripts
+- Store and reuse values with **variables**
+- Print output and read **input** from the user
+- Do arithmetic and comparisons with **operators**
+- Capture a command's output with **command substitution**
 
 ---
 
-## Theory · ~20 min
+## Theory · ~15 min
 
-### Functions
+### What is a script?
 
-Functions in Bash let you group commands, avoid repetition, and make scripts readable:
+A script is just a plain text file with commands in it, run from top to bottom. Instead of typing commands one at a time, you save them in a file and run them together — repeatably.
 
-```bash
-# Define
-greet() {
-    local NAME=$1           # local = scoped to this function
-    echo "Hello, $NAME!"
-}
-
-# Call
-greet "Balman"
-greet "DevOps"
-```
-
-Key rules:
-- Define before you call
-- Use `local` for function-scoped variables (prevents polluting global scope)
-- `$1`, `$2`... are positional arguments to the function
-- Return values with `return <code>` (exit codes only) or `echo` (actual string output)
-
-```bash
-# Return a string value
-get_date() {
-    echo "$(date +%Y-%m-%d)"
-}
-
-TODAY=$(get_date)
-echo "Today: $TODAY"
-```
-
-### Error Handling
-
-Professional scripts fail loudly and early:
+The first line is the **shebang**, which says *which program runs this file*:
 
 ```bash
 #!/bin/bash
-set -e          # exit immediately if any command fails
-set -u          # treat unset variables as errors
-set -o pipefail # catch failures in pipes
-
-# A function that handles errors
-die() {
-    echo "ERROR: $1" >&2    # >&2 writes to stderr
-    exit 1
-}
-
-[ -f config.txt ] || die "config.txt not found"
+echo "This is my first script"
 ```
 
-### Cron — Scheduled Tasks
-
-`cron` is the Linux scheduler. It runs commands on a schedule, defined in a **crontab** (cron table).
+Make it executable, then run it:
 
 ```bash
-crontab -e      # edit your crontab
-crontab -l      # list your cron jobs
+chmod +x myscript.sh     # allow it to run (Day 4 permissions!)
+./myscript.sh            # run it
 ```
 
-Cron syntax:
+### Printing output — `echo` and `printf`
 
-```
-* * * * *   command
-│ │ │ │ │
-│ │ │ │ └── Day of week (0-7, Sun=0 or 7)
-│ │ │ └──── Month (1-12)
-│ │ └────── Day of month (1-31)
-│ └──────── Hour (0-23)
-└────────── Minute (0-59)
+```bash
+echo "Hello, world"
+echo "Multiple" "words" "become spaced"
+printf "Name: %s  Score: %d\n" "Sam" 42   # %s = string, %d = number, \n = newline
 ```
 
-Examples:
+`echo` is the everyday tool; `printf` gives you precise formatting when you need it.
 
-```
-0 * * * *        /path/script.sh    # every hour at :00
-30 2 * * *       /path/script.sh    # daily at 02:30
-0 0 * * 0        /path/script.sh    # every Sunday at midnight
-*/5 * * * *      /path/script.sh    # every 5 minutes
-0 9 * * 1-5      /path/script.sh    # weekdays at 9am
+### Variables — storing a value
+
+A **variable** holds a value you can reuse. The rules are simple but strict:
+
+```bash
+name="Sam"          # NO spaces around the =
+count=5
+greeting="Hello there"
 ```
 
-!!! tip
-    Use [crontab.guru](https://crontab.guru) to verify your cron expressions visually.
+!!! warning "No spaces around `=`"
+    `name = "Sam"` is an error — bash thinks `name` is a command. It must be `name="Sam"`.
+
+### Variable substitution — using a value
+
+Put a `$` in front of the name to insert its value. Use `${...}` braces when the name touches other text:
+
+```bash
+name="Sam"
+echo "Hello, $name"        # Hello, Sam
+file="report"
+echo "${file}.txt"         # report.txt   (braces keep it separate from .txt)
+```
+
+!!! tip "Always quote your variables"
+    Write `"$name"`, not `$name`. Quoting prevents surprises when a value contains spaces. This one habit prevents most beginner scripting bugs.
+
+### Reading input from the user
+
+```bash
+read -rp "What is your name? " name
+echo "Nice to meet you, $name"
+```
+
+`-p` shows a prompt; `-r` is a safety flag you should always include.
+
+### Operators — doing math and comparisons
+
+Arithmetic goes inside `$(( ... ))`:
+
+```bash
+a=6
+b=4
+echo $(( a + b ))     # 10
+echo $(( a - b ))     # 2
+echo $(( a * b ))     # 24
+echo $(( a / b ))     # 1  (integer division)
+```
+
+Comparison operators produce true/false and become important tomorrow with conditionals:
+
+| Numbers | Meaning | Strings | Meaning |
+|---|---|---|---|
+| `-eq` | equal | `==` | equal |
+| `-ne` | not equal | `!=` | not equal |
+| `-lt` `-gt` | less / greater | `-z "$s"` | is empty |
+| `-le` `-ge` | ≤ / ≥ | `-n "$s"` | is non-empty |
+
+### Command substitution — capturing output
+
+`$( ... )` runs a command and hands you its output as a value:
+
+```bash
+today=$(date +%F)
+echo "Today is $today"
+
+files=$(ls | wc -l)
+echo "There are $files items in this folder"
+
+me=$(whoami)
+echo "Logged in as $me"
+```
+
+This is how scripts pull real data from the system.
 
 ---
 
 ## Lab · ~50 min
 
-### Step 1 — Functions with error handling
+Work **inside your Vagrant VM**. Keep your scripts in `~/scripts`.
 
 ```bash
-cat > ~/scripts/deploy.sh << 'EOF'
-#!/bin/bash
-set -euo pipefail
-
-# Color output helpers
-log_info()  { echo "[INFO]  $1"; }
-log_ok()    { echo "[OK]    $1"; }
-log_error() { echo "[ERROR] $1" >&2; }
-die()       { log_error "$1"; exit 1; }
-
-# Check a command exists
-require() {
-    local CMD=$1
-    command -v "$CMD" &>/dev/null || die "$CMD is not installed"
-    log_ok "$CMD is available"
-}
-
-# Check a service is running
-check_service() {
-    local SERVICE=$1
-    if systemctl is-active --quiet "$SERVICE"; then
-        log_ok "$SERVICE is running"
-    else
-        log_error "$SERVICE is NOT running"
-        return 1
-    fi
-}
-
-# Main
-main() {
-    log_info "Starting pre-deploy checks..."
-
-    require curl
-    require git
-    require docker || true    # optional: don't fail if missing
-
-    check_service nginx || log_info "nginx not required, skipping"
-
-    log_info "All checks passed. Ready to deploy."
-}
-
-main "$@"
-EOF
-
-chmod +x ~/scripts/deploy.sh
-~/scripts/deploy.sh
+mkdir -p ~/scripts && cd ~/scripts
 ```
 
-### Step 2 — Build a log rotation script
+### Step 1 — Your first script
 
 ```bash
-cat > ~/scripts/rotate_logs.sh << 'EOF'
+cat > first.sh << 'EOF'
 #!/bin/bash
-set -euo pipefail
-
-LOG_DIR="${1:-/var/log/myapp}"
-MAX_DAYS=7
-
-rotate() {
-    local DIR=$1
-    if [ ! -d "$DIR" ]; then
-        echo "Log dir $DIR does not exist, skipping"
-        return
-    fi
-
-    echo "Rotating logs in $DIR (keeping $MAX_DAYS days)"
-    find "$DIR" -type f -name "*.log" -mtime +$MAX_DAYS -exec rm -v {} \;
-    echo "Done."
-}
-
-rotate "$LOG_DIR"
+echo "Hello from my first script!"
+echo "The time is now."
 EOF
 
-chmod +x ~/scripts/rotate_logs.sh
-
-# Test with a fake log dir
-mkdir -p /tmp/fake-logs
-touch /tmp/fake-logs/app.log
-~/scripts/rotate_logs.sh /tmp/fake-logs
+chmod +x first.sh
+./first.sh
 ```
 
-### Step 3 — Schedule with cron
+### Step 2 — Variables
 
 ```bash
-# First, make sure the log goes somewhere useful
-cat > ~/scripts/heartbeat.sh << 'EOF'
+cat > vars.sh << 'EOF'
 #!/bin/bash
-echo "$(date '+%Y-%m-%d %H:%M:%S') - system alive, load: $(uptime | awk -F'load average:' '{print $2}')" \
-    >> /tmp/heartbeat.log
+name="DevOps Student"
+week=1
+echo "Hello, $name"
+echo "You are in week $week"
 EOF
 
-chmod +x ~/scripts/heartbeat.sh
-
-# Run it manually first to confirm it works
-~/scripts/heartbeat.sh
-cat /tmp/heartbeat.log
-
-# Now schedule it every minute
-crontab -e
-# Add this line:
-# * * * * * /home/<your-username>/scripts/heartbeat.sh
-
-# Wait a couple minutes, then check:
-cat /tmp/heartbeat.log
+chmod +x vars.sh
+./vars.sh
 ```
 
-### Step 4 — Environment variables in scripts
+### Step 3 — Variable substitution with braces
 
 ```bash
-cat > ~/scripts/backup.sh << 'EOF'
+cat > filename.sh << 'EOF'
 #!/bin/bash
-set -euo pipefail
-
-SOURCE="${BACKUP_SOURCE:-$HOME/devops-practice}"
-DEST="${BACKUP_DEST:-/tmp/backups}"
-DATE=$(date +%Y%m%d_%H%M%S)
-
-mkdir -p "$DEST"
-
-ARCHIVE="$DEST/backup_${DATE}.tar.gz"
-tar -czf "$ARCHIVE" "$SOURCE"
-
-echo "Backup created: $ARCHIVE"
-echo "Size: $(du -h $ARCHIVE | cut -f1)"
+base="backup"
+ext="tar.gz"
+echo "Full name: ${base}.${ext}"
 EOF
 
-chmod +x ~/scripts/backup.sh
-
-# Run with defaults
-~/scripts/backup.sh
-
-# Override via environment
-BACKUP_SOURCE=/etc/nginx ~/scripts/backup.sh
-ls /tmp/backups/
+chmod +x filename.sh
+./filename.sh
 ```
+
+### Step 4 — Read input
+
+```bash
+cat > ask.sh << 'EOF'
+#!/bin/bash
+read -rp "What's your name?      " name
+read -rp "Favorite Linux tool?   " tool
+echo "$name likes $tool — good choice!"
+EOF
+
+chmod +x ask.sh
+./ask.sh
+```
+
+### Step 5 — Arithmetic
+
+```bash
+cat > math.sh << 'EOF'
+#!/bin/bash
+read -rp "First number:  " a
+read -rp "Second number: " b
+echo "Sum:     $(( a + b ))"
+echo "Product: $(( a * b ))"
+EOF
+
+chmod +x math.sh
+./math.sh
+```
+
+### Step 6 — Command substitution (put it together)
+
+```bash
+cat > hello-system.sh << 'EOF'
+#!/bin/bash
+user=$(whoami)
+host=$(hostname)
+today=$(date +%F)
+echo "Hi $user! You are on '$host' and today is $today."
+EOF
+
+chmod +x hello-system.sh
+./hello-system.sh
+```
+
+Notice how each script adds exactly one new idea on top of the last. That's the whole game — small, composable steps.
 
 ---
 
 ## Assignment
 
-Write a script `~/scripts/health_check.sh` that:
+Create these in `my-progress/day-06/` and commit the scripts.
 
-1. Defines at least 3 functions: `check_disk`, `check_memory`, `check_service`
-2. `check_disk` — warns if any partition is over 80% full
-3. `check_memory` — warns if available RAM is below 500MB
-4. `check_service` — takes a service name as argument, reports OK or FAIL
-5. Runs all three checks from a `main` function
-6. Schedule it to run every 5 minutes with cron and log output to `/tmp/health.log`
+1. **`profile.sh`** — ask the user for their name and their favorite DevOps tool (`read`), store each in a variable, then print a friendly two-line summary using variable substitution.
+2. **`calc.sh`** — ask for two numbers and print their **sum, difference, and product** using arithmetic operators. *(Bonus: also print today's date using command substitution.)*
 
 ```bash
-cp ~/scripts/health_check.sh my-progress/scripts/health_check.sh
-git add my-progress/
-git commit -m "day-06: bash functions and cron"
+git add my-progress/day-06/
+git commit -m "day-06: shell scripting basics"
 git push origin main
 ```
 
@@ -262,6 +234,7 @@ git push origin main
 
 ## Further Reading
 
-- [Bash best practices](https://bertvv.github.io/cheat-sheets/Bash.html)
-- [crontab.guru](https://crontab.guru) — visual cron expression editor
-- [ShellCheck](https://www.shellcheck.net/) — always check your scripts here
+- [Bash for Beginners (video series, Microsoft)](https://learn.microsoft.com/en-us/shows/bash-for-beginners/)
+- [ShellCheck](https://www.shellcheck.net/) — paste a script and it flags mistakes (`sudo apt install shellcheck`)
+- `help read`, `help echo` — bash built-in help
+- [explainshell.com](https://explainshell.com) — paste any command to see each part explained

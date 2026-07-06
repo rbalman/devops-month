@@ -1,253 +1,257 @@
-# Day 05 · Bash Scripting I — Variables, Conditionals & Loops
+# Day 05 · The Shell — Types, Profiles & Environment
 
 ## Learning Objectives
 
-- Write and run Bash scripts
-- Use variables, conditionals, and loops to automate repetitive tasks
-- Handle user input and basic error conditions
+- Understand what a shell is and the difference between common shells
+- Know how login vs. non-login and interactive vs. non-interactive shells load config, and in what order
+- Work with environment variables and understand how they're inherited
+- Read exit/status codes and chain commands based on them
+- Create aliases and shell functions to speed up your daily work
 
 ---
 
-## Theory · ~20 min
+## Theory · ~25 min
 
-### Why Bash Scripting?
+### What is a shell?
 
-Every DevOps engineer writes Bash. It is the glue that holds infrastructure together — deploy scripts, health checks, backup jobs, setup scripts. You don't need to be a programmer, but you need to be fluent enough to read, modify, and write scripts confidently.
+A **shell** is the program that reads the commands you type and asks the kernel to run them. It's your interface to the operating system. When you `vagrant ssh` into the VM and see a prompt, a shell is waiting for input.
 
-### Script Structure
+The shell is both an **interactive command interpreter** and a **programming language** — the same `if`, `for`, and variables you type by hand also power scripts (Days 6–7).
 
-Every Bash script starts with a **shebang** line that tells the OS which interpreter to use:
+### Shell types
 
-```bash
-#!/bin/bash
-```
-
-Make it executable and run it:
-
-```bash
-chmod +x script.sh
-./script.sh
-```
-
-### Variables
-
-```bash
-NAME="balman"           # no spaces around =
-echo $NAME              # use with $
-echo "${NAME}_rawat"    # use ${} when adjacent to other chars
-
-# Read-only
-readonly VERSION="1.0"
-
-# Command output into a variable
-DATE=$(date +%Y-%m-%d)
-FILES=$(ls ~/devops-practice)
-echo "Today is $DATE"
-```
-
-### Conditionals
-
-```bash
-# if / elif / else
-if [ condition ]; then
-    # commands
-elif [ other_condition ]; then
-    # commands
-else
-    # commands
-fi
-```
-
-Common test conditions:
-
-| Test | Meaning |
+| Shell | Notes |
 |---|---|
-| `[ -f file ]` | file exists and is a regular file |
-| `[ -d dir ]` | directory exists |
-| `[ -z "$VAR" ]` | string is empty |
-| `[ -n "$VAR" ]` | string is not empty |
-| `[ "$A" == "$B" ]` | strings are equal |
-| `[ $N -gt 10 ]` | number greater than 10 |
-| `[ $N -eq 0 ]` | number equals 0 |
-
-### Loops
+| `sh` | The original Bourne shell. Minimal, POSIX baseline. Still the "lowest common denominator" for portable scripts. |
+| `bash` | **B**ourne **A**gain **Sh**ell — the default on most Linux distros, including our Ubuntu VM. This is what we use. |
+| `zsh` | Popular on macOS (default since Catalina). Bash-compatible with nicer completion and theming. |
+| `fish` | Friendly, modern, but *not* POSIX-compatible — scripts written for bash won't run in it. |
 
 ```bash
-# for loop over a list
-for item in one two three; do
-    echo "$item"
-done
-
-# for loop over files
-for file in /etc/*.conf; do
-    echo "Found: $file"
-done
-
-# while loop
-COUNT=0
-while [ $COUNT -lt 5 ]; do
-    echo "Count: $COUNT"
-    COUNT=$((COUNT + 1))
-done
+echo $0            # which shell is running right now?
+echo $SHELL        # your default login shell (from /etc/passwd)
+cat /etc/shells    # shells installed on this system
 ```
 
-### Exit Codes
+!!! note "SHELL vs. \$0"
+    `$SHELL` is your *configured default* shell — it doesn't change just because you launched another one. `$0` reflects the shell **actually running** the current session. Start `sh` from inside bash and `$0` changes while `$SHELL` does not.
 
-Every command returns an exit code: `0` = success, non-zero = failure.
+### Login vs. non-login, interactive vs. non-interactive
+
+How the shell starts decides **which config files it reads**. Four combinations matter:
+
+- **Login shell** — started when you log in (SSH, console, `su -`). Loads your profile files.
+- **Non-login shell** — a shell you open from within an existing session (a new terminal tab, running `bash`).
+- **Interactive** — you type at a prompt.
+- **Non-interactive** — running a script; no prompt.
+
+### Profiles and their precedence
+
+For **bash**, startup files are read in this order:
+
+**Login shell** reads the first profile it finds, then your bashrc if that profile sources it:
+
+```
+/etc/profile                         ← system-wide, all users
+   └─ /etc/profile.d/*.sh            ← drop-in scripts
+~/.bash_profile   → ~/.bash_login → ~/.profile
+   (only the FIRST one that exists is read)
+```
+
+**Interactive non-login shell** (new terminal tab) reads:
+
+```
+/etc/bash.bashrc                     ← system-wide
+~/.bashrc                            ← your per-user interactive config
+```
+
+**Non-interactive shell** (a script) reads neither — it uses `$BASH_ENV` if set, otherwise nothing.
+
+!!! tip "The practical rule"
+    Put **environment variables and `PATH`** in `~/.profile` (or `~/.bash_profile`) so they're set once at login and inherited everywhere. Put **aliases, functions, and prompt tweaks** in `~/.bashrc` so every interactive shell gets them. Most `~/.bash_profile` files simply `source ~/.bashrc` to get both.
+
+### Environment variables
+
+Variables hold values the shell and programs read. A **shell variable** is local to the current shell; an **environment variable** is `export`ed so child processes inherit it.
 
 ```bash
-ls /nonexistent
-echo $?         # prints 1 (or 2) — failure
-
-ls /etc
-echo $?         # prints 0 — success
+name="balman"          # shell variable (not inherited)
+export EDITOR="vim"    # environment variable (inherited by children)
+echo "$name"
+printenv EDITOR
+env                    # list all environment variables
 ```
 
-Use this in scripts to detect failures:
+Common ones you'll meet constantly:
+
+| Variable | Purpose |
+|---|---|
+| `PATH` | Colon-separated dirs the shell searches for commands |
+| `HOME` | Your home directory (`~`) |
+| `USER` | Your username |
+| `PWD` | Current working directory |
+| `SHELL` | Your default shell |
+| `LANG` | Language/locale settings |
+
+`PATH` is the one you'll edit most — it's why typing `ls` finds `/usr/bin/ls`:
 
 ```bash
-if ! mkdir /some/dir; then
-    echo "ERROR: could not create directory"
-    exit 1
-fi
+echo "$PATH"
+export PATH="$HOME/bin:$PATH"   # add your own bin dir, searched first
 ```
+
+### Exit / status codes
+
+Every command returns a numeric **exit code** when it finishes. `0` means success; anything else (1–255) means some kind of failure. Scripts and automation live or die by this.
+
+```bash
+ls /etc >/dev/null
+echo $?          # 0  → success
+
+ls /nope 2>/dev/null
+echo $?          # 2  → failure ($? holds the LAST command's code)
+```
+
+Chain commands based on the result:
+
+```bash
+mkdir -p ~/lab && cd ~/lab       # run cd ONLY if mkdir succeeded
+ping -c1 host || echo "unreachable"   # run echo ONLY if ping failed
+```
+
+!!! note "`$?` is a big deal"
+    In CI/CD pipelines a non-zero exit code is how a step reports failure and stops the pipeline. Getting exit codes right is the difference between a broken deploy that halts loudly and one that silently ships bad code.
+
+### Aliases and functions
+
+An **alias** is a short name for a longer command. A **function** is a small named block that can take arguments and run multiple commands — more powerful than an alias.
+
+```bash
+# alias: simple text substitution
+alias ll='ls -alh'
+alias gs='git status'
+
+# function: takes arguments, runs logic
+mkcd() {
+  mkdir -p "$1" && cd "$1"
+}
+mkcd ~/projects/newapp     # makes the dir AND enters it
+```
+
+Aliases and functions defined at the prompt vanish when the shell closes. Put them in `~/.bashrc` to keep them permanently.
 
 ---
 
-## Lab · ~50 min
+## Lab · ~45 min
 
-### Step 1 — Your first script
+Work **inside your Vagrant VM** (`vagrant ssh`).
+
+### Step 1 — Identify your shell and its config
 
 ```bash
-mkdir -p ~/scripts
-cat > ~/scripts/hello.sh << 'EOF'
-#!/bin/bash
-NAME="DevOps Engineer"
-echo "Hello, $NAME!"
-echo "Today is: $(date)"
-echo "You are running: $(uname -s) $(uname -r)"
-EOF
-
-chmod +x ~/scripts/hello.sh
-~/scripts/hello.sh
+echo $0
+echo $SHELL
+cat /etc/shells
+ls -la ~ | grep -E '\.bash|\.profile'   # your startup files
 ```
 
-### Step 2 — Conditionals in practice
+### Step 2 — Watch precedence in action
 
 ```bash
-cat > ~/scripts/check_file.sh << 'EOF'
-#!/bin/bash
+# Add a marker to each file, then observe which loads
+echo 'echo "[loaded ~/.profile]"' >> ~/.profile
+echo 'echo "[loaded ~/.bashrc]"'  >> ~/.bashrc
 
-FILE="/etc/nginx/nginx.conf"
+# Login shell (reads profile)
+bash -l -c 'echo done'
 
-if [ -f "$FILE" ]; then
-    echo "nginx config exists at $FILE"
-    echo "File size: $(du -h $FILE | cut -f1)"
-else
-    echo "nginx is not installed or config is missing"
-fi
-EOF
-
-chmod +x ~/scripts/check_file.sh
-~/scripts/check_file.sh
+# Interactive non-login shell (reads .bashrc)
+bash -i -c 'echo done'
 ```
 
-### Step 3 — Loop over servers
+Which marker printed in each case? That's precedence, live.
+
+### Step 3 — Explore environment variables
 
 ```bash
-cat > ~/scripts/ping_check.sh << 'EOF'
-#!/bin/bash
+printenv | sort | head -30
+echo "$PATH" | tr ':' '\n'      # print PATH one directory per line
 
-SERVERS=("8.8.8.8" "1.1.1.1" "google.com" "nonexistent.invalid")
-
-for SERVER in "${SERVERS[@]}"; do
-    if ping -c 1 -W 2 "$SERVER" &>/dev/null; then
-        echo "[OK]   $SERVER is reachable"
-    else
-        echo "[FAIL] $SERVER is NOT reachable"
-    fi
-done
-EOF
-
-chmod +x ~/scripts/ping_check.sh
-~/scripts/ping_check.sh
+# Set a shell var vs an exported var, then start a child shell
+myvar="local"
+export myexp="inherited"
+bash -c 'echo "child sees: myvar=[$myvar] myexp=[$myexp]"'
 ```
 
-### Step 4 — A disk usage alerter
+Notice the child sees `myexp` but not `myvar`.
+
+### Step 4 — Extend your PATH
 
 ```bash
-cat > ~/scripts/disk_alert.sh << 'EOF'
+mkdir -p ~/bin
+cat > ~/bin/hello << 'EOF'
 #!/bin/bash
-
-THRESHOLD=80
-
-# Get usage % for each mounted filesystem
-df -h | tail -n +2 | while read line; do
-    USAGE=$(echo "$line" | awk '{print $5}' | tr -d '%')
-    MOUNT=$(echo "$line" | awk '{print $6}')
-
-    if [ -n "$USAGE" ] && [ "$USAGE" -gt "$THRESHOLD" ] 2>/dev/null; then
-        echo "WARNING: $MOUNT is at ${USAGE}% usage!"
-    else
-        echo "OK: $MOUNT is at ${USAGE:-?}% usage"
-    fi
-done
+echo "Hello from my own PATH!"
 EOF
+chmod +x ~/bin/hello
 
-chmod +x ~/scripts/disk_alert.sh
-~/scripts/disk_alert.sh
+hello                          # probably: command not found
+export PATH="$HOME/bin:$PATH"
+hello                          # now it runs
+which hello
 ```
 
-### Step 5 — Accept arguments
+### Step 5 — Exit codes and chaining
 
 ```bash
-cat > ~/scripts/create_user.sh << 'EOF'
-#!/bin/bash
+true;  echo "true  -> $?"      # 0
+false; echo "false -> $?"      # 1
 
-if [ $# -lt 1 ]; then
-    echo "Usage: $0 <username>"
-    exit 1
-fi
+grep -q root /etc/passwd && echo "root exists" || echo "no root"
 
-USERNAME=$1
+# A command's own failure code
+grep -q nobody-xyz /etc/passwd; echo "exit: $?"
+```
 
-if id "$USERNAME" &>/dev/null; then
-    echo "User $USERNAME already exists"
-    exit 0
-fi
+### Step 6 — Make aliases and a function stick
 
-sudo useradd -m -s /bin/bash "$USERNAME"
-echo "User $USERNAME created successfully"
+```bash
+cat >> ~/.bashrc << 'EOF'
+
+# --- my devops aliases ---
+alias ll='ls -alh'
+alias ports='ss -tlnp'
+alias myip='ip -4 addr show | grep inet'
+
+# make a dir and enter it
+mkcd() { mkdir -p "$1" && cd "$1"; }
 EOF
 
-chmod +x ~/scripts/create_user.sh
-~/scripts/create_user.sh            # should print usage
-~/scripts/create_user.sh testuser   # should create user
+source ~/.bashrc               # reload without logging out
+ll
+mkcd ~/scratch/test && pwd
+```
+
+### Step 7 — Clean up the markers from Step 2
+
+```bash
+# Remove the two echo lines you appended so your shell isn't noisy
+sed -i '/\[loaded ~\/\.profile\]/d' ~/.profile
+sed -i '/\[loaded ~\/\.bashrc\]/d'  ~/.bashrc
 ```
 
 ---
 
 ## Assignment
 
-Write a script `~/scripts/system_report.sh` that prints:
+In `my-progress/day-05.md`:
 
-1. Hostname and current date/time
-2. OS version (`cat /etc/os-release`)
-3. CPU count and model
-4. Available RAM (free -h)
-5. Disk usage for `/` partition
-6. Top 5 processes by CPU usage
+1. **Precedence scenario:** You add a `PATH` change to `~/.bashrc`, but when you `vagrant ssh` in fresh it isn't applied — yet it works after you open a new shell inside the session. Explain *why* in terms of login vs. non-login shells, and state where you'd actually put the change so SSH logins pick it up.
+2. **Make it yours:** Add **two** things to `~/.bashrc` that are genuinely useful to *you* and different from the lab's examples: one alias and one function that takes an argument (e.g. a `bak` function that copies a file to `<file>.bak`). Paste the additions and show them working after `source ~/.bashrc`.
 
-The script must:
-- Use at least one variable
-- Use at least one conditional (e.g., warn if disk > 70%)
-- Be executable and run without errors
-
-Push it:
 ```bash
-cp ~/scripts/system_report.sh my-progress/scripts/system_report.sh
-git add my-progress/
-git commit -m "day-05: bash scripting I"
+git add my-progress/day-05.md
+git commit -m "day-05: shell, profiles, environment, exit codes"
 git push origin main
 ```
 
@@ -255,6 +259,7 @@ git push origin main
 
 ## Further Reading
 
-- [Bash scripting cheatsheet](https://devhints.io/bash)
-- [ShellCheck](https://www.shellcheck.net/) — paste your script and get lint warnings
-- `man bash` — comprehensive reference (search with `/`)
+- `man bash` → the **INVOCATION** section explains startup file order precisely
+- [Bash startup files, explained](https://www.gnu.org/software/bash/manual/html_node/Bash-Startup-Files.html)
+- [The Art of Command Line](https://github.com/jlevy/the-art-of-command-line)
+- `help alias`, `help export`, `help function` — bash built-in help
