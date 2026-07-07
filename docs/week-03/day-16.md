@@ -193,13 +193,6 @@ In `my-progress/day-16.md`:
    - Verify by listing the file
 4. What is the difference between the `shell` module and the `command` module in Ansible?
 
-```bash
-cp -r ~/ansible-labs my-progress/ansible-labs
-git add my-progress/
-git commit -m "day-16: ansible inventory and ad-hoc commands"
-git push origin main
-```
-
 ---
 
 ## Further Reading

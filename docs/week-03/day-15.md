@@ -227,13 +227,6 @@ In `my-progress/day-15.md`:
 3. What does the `/vagrant` shared folder do? Why is it useful for DevOps workflows?
 4. When would you choose Vagrant over Docker for a lab environment?
 
-```bash
-cp -r ~/vagrant-labs/basic my-progress/vagrant-basic
-git add my-progress/
-git commit -m "day-15: vagrant vm provisioning"
-git push origin main
-```
-
 ---
 
 ## Further Reading

@@ -185,12 +185,6 @@ In `my-progress/day-09.md`:
 3. What DNS server is your machine currently using? Where is this configured?
 4. Check the TLS certificate for `github.com`. When does it expire? Who issued it?
 
-```bash
-git add my-progress/day-09.md
-git commit -m "day-09: ssh, dns, tls"
-git push origin main
-```
-
 ---
 
 ## Further Reading

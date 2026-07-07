@@ -174,12 +174,6 @@ In `my-progress/day-12.md`:
 3. Run `docker run -d -p 8080:80 nginx`. Then run the same command again. What happens? How does Docker name the second container?
 4. What does `docker system prune` do? Is there anything it does NOT remove by default?
 
-```bash
-git add my-progress/day-12.md
-git commit -m "day-12: docker containers basics"
-git push origin main
-```
-
 ---
 
 ## Further Reading

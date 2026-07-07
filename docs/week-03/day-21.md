@@ -267,13 +267,6 @@ make all
 
 This week's assignment is the mini project itself. Push everything to your fork:
 
-```bash
-cp -r ~/mini-project my-progress/mini-project
-git add my-progress/
-git commit -m "day-21: week 3 mini project complete"
-git push origin main
-```
-
 Then answer in `my-progress/day-21.md`:
 
 1. What was the hardest part of this mini project? What did you debug?

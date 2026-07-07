@@ -227,13 +227,6 @@ In `my-progress/day-28.md`:
 3. What is the `for: 2m` duration in an alert rule? Why is it important?
 4. What is the difference between "Alerting" and "Monitoring"? Can you have one without the other?
 
-```bash
-cp ~/monitoring-labs/grafana/provisioning/dashboards/*.json my-progress/dashboards/
-git add my-progress/
-git commit -m "day-28: grafana dashboards and alerting"
-git push origin main
-```
-
 ---
 
 ## Further Reading

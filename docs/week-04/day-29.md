@@ -422,8 +422,3 @@ Document your final project in `my-progress/day-29.md`:
 3. What broke during the project and how did you fix it?
 4. If you had to do this for a production app with a team of 5, what would you change?
 
-```bash
-git add my-progress/day-29.md
-git commit -m "day-29: final project complete"
-git push origin main
-```

@@ -308,12 +308,6 @@ In `my-progress/day-25.md`:
 3. Add a Slack or Discord notification step at the end of the `deploy` job that sends a message when deployment succeeds.
 4. What is the difference between Docker Hub and AWS ECR as a container registry?
 
-```bash
-git add my-progress/day-25.md
-git commit -m "day-25: cicd build push deploy"
-git push origin main
-```
-
 ---
 
 ## Further Reading

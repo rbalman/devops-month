@@ -287,13 +287,6 @@ In `my-progress/day-19.md`:
 3. Create a Terraform config that runs **two** Nginx containers — one on port 8080 and one on port 8081. Use a `count` or two separate resources.
 4. What does `terraform destroy` do? When would you use it?
 
-```bash
-cp -r ~/terraform-labs my-progress/terraform-labs
-git add my-progress/
-git commit -m "day-19: terraform providers resources"
-git push origin main
-```
-
 ---
 
 ## Further Reading

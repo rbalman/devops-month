@@ -296,12 +296,6 @@ In `my-progress/day-24.md`:
 3. Add a new function `multiply(a, b)` to `app.py` and write a test for it. Push to a branch, open a pull request, and watch the CI run. Paste the link to the workflow run.
 4. What are GitHub Actions Secrets and when do you need them? Give an example.
 
-```bash
-git add my-progress/day-24.md
-git commit -m "day-24: github actions ci fundamentals"
-git push origin main
-```
-
 ---
 
 ## Further Reading

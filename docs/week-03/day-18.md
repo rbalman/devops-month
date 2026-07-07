@@ -287,13 +287,6 @@ In `my-progress/day-18.md`, answer:
 - What is Jinja2? Give one example of a template expression and what it produces.
 - Why are roles better than a single large playbook?
 
-```bash
-cp -r ~/ansible-labs/roles my-progress/ansible-labs/
-git add my-progress/
-git commit -m "day-18: ansible roles variables templates"
-git push origin main
-```
-
 ---
 
 ## Further Reading

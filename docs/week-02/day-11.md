@@ -213,12 +213,6 @@ In `my-progress/day-11.md`:
 3. What does the `RewriteRule ^(.*)$ https://%{HTTP_HOST}$1 [R=301,L]` rule do? Break down each part.
 4. Check the TLS certificate you generated with `openssl x509 -in /etc/ssl/localcerts/server.crt -noout -dates`. What is the expiry? Why would a long-lived self-signed cert be a bad idea in production?
 
-```bash
-git add my-progress/day-11.md
-git commit -m "day-11: apache and ssl"
-git push origin main
-```
-
 ---
 
 ## Further Reading

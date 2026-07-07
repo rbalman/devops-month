@@ -200,12 +200,6 @@ In `my-progress/day-22.md`:
 
 Document the `$INSTANCE_ID`, `$SG_ID`, and `$PUBLIC_IP` — you'll need them on Day 25.
 
-```bash
-git add my-progress/day-22.md
-git commit -m "day-22: aws iam and ec2"
-git push origin main
-```
-
 ---
 
 !!! warning "Cost"

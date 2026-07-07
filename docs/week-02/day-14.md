@@ -282,13 +282,6 @@ In `my-progress/day-14.md`, answer:
 - What is the difference between `docker compose down` and `docker compose down -v`?
 - What does `depends_on` guarantee? What doesn't it guarantee?
 
-```bash
-cp -r ~/docker-labs/compose-demo my-progress/compose-demo
-git add my-progress/
-git commit -m "day-14: docker compose multi-container"
-git push origin main
-```
-
 ---
 
 ## Further Reading

@@ -285,12 +285,6 @@ In `my-progress/day-26.md`:
 3. Add an `ERROR_COUNT` Counter to the app that increments on any unhandled exception. Write a `/error` endpoint that raises an exception on purpose. Query the metric in Prometheus.
 4. What does `scrape_interval: 15s` mean? What happens if your app takes longer than 15s to respond to Prometheus's scrape request?
 
-```bash
-git add my-progress/day-26.md
-git commit -m "day-26: prometheus metrics monitoring"
-git push origin main
-```
-
 ---
 
 ## Further Reading

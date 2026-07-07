@@ -249,12 +249,6 @@ In `my-progress/day-05.md`:
 1. **Precedence scenario:** You add a `PATH` change to `~/.bashrc`, but when you `vagrant ssh` in fresh it isn't applied — yet it works after you open a new shell inside the session. Explain *why* in terms of login vs. non-login shells, and state where you'd actually put the change so SSH logins pick it up.
 2. **Make it yours:** Add **two** things to `~/.bashrc` that are genuinely useful to *you* and different from the lab's examples: one alias and one function that takes an argument (e.g. a `bak` function that copies a file to `<file>.bak`). Paste the additions and show them working after `source ~/.bashrc`.
 
-```bash
-git add my-progress/day-05.md
-git commit -m "day-05: shell, profiles, environment, exit codes"
-git push origin main
-```
-
 ---
 
 ## Further Reading

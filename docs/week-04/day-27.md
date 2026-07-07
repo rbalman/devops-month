@@ -343,12 +343,6 @@ In `my-progress/day-27.md`:
 3. Modify the app to log a different message for `/health` vs `/` endpoints. Query Loki to show only health check logs.
 4. What does `count_over_time({container="myapp"}[5m])` return? How is it different from `rate()`?
 
-```bash
-git add my-progress/day-27.md
-git commit -m "day-27: loki log aggregation"
-git push origin main
-```
-
 ---
 
 ## Further Reading

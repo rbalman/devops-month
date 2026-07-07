@@ -312,12 +312,6 @@ Create these in `my-progress/day-07/` and commit the scripts.
 
 *(Optional): schedule one of your scripts with cron to run every 5 minutes, confirm it ran via its log file, then remove the entry. Paste your `crontab -l` into `my-progress/day-07.md`.*
 
-```bash
-git add my-progress/day-07/
-git commit -m "day-07: conditionals, loops, functions, cron"
-git push origin main
-```
-
 ---
 
 ## Further Reading

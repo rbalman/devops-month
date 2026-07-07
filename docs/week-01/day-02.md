@@ -1,173 +1,180 @@
-# Day 02 · Linux History & the Filesystem Hierarchy
+# Day 02 · The Filesystem — Navigation, Files & Text
 
 ## Learning Objectives
 
-- Understand where Linux came from and why it matters for DevOps
-- Explain what "open source" means and why Linux is licensed the way it is
-- Read the Linux filesystem hierarchy and know what each top-level directory is for
-- Locate configuration, logs, and binaries by knowing where they *should* live
+- Know where Linux came from and read the filesystem hierarchy like a map
+- Move around the filesystem confidently and find files
+- Create, copy, move, and remove files and directories
+- Read and transform text with the everyday command-line tools
 
 ---
 
-## Theory · ~25 min
+## Theory · ~15 min
 
-### A short history of Linux
+### A short history (the 60-second version)
 
-To understand Linux, you have to start with **Unix**.
+- **Unix (1970s)** — built at AT&T Bell Labs. It gave us the hierarchical filesystem and small composable tools joined by pipes. Powerful, but proprietary.
+- **GNU (1983)** — Richard Stallman started the **GNU Project** to build a *free* Unix-compatible system, including tools you use daily (`bash`, `ls`, `grep`, `gcc`). It was missing a kernel.
+- **Linux (1991)** — **Linus Torvalds** wrote a free Unix-like **kernel**. GNU tools + the Linux kernel = a complete, free operating system (why purists say **"GNU/Linux"**).
 
-- **1969–1970s — Unix.** Built at AT&T Bell Labs by Ken Thompson and Dennis Ritchie. It introduced ideas we still rely on every day: a hierarchical filesystem, "everything is a file," small composable tools joined by pipes, and a multi-user design. Unix was powerful but proprietary and expensive.
-- **1983 — GNU.** Richard Stallman launched the **GNU Project** ("GNU's Not Unix") to build a completely *free* Unix-compatible operating system. By the late 1980s GNU had most of the pieces — a compiler (`gcc`), a shell (`bash`), core utilities (`ls`, `cp`, `grep`) — but it was missing one critical component: a working **kernel**.
-- **1991 — the Linux kernel.** A Finnish student named **Linus Torvalds** wrote a Unix-like kernel as a hobby project and posted it online. His now-famous message: *"I'm doing a (free) operating system (just a hobby, won't be big and professional...)."* He was wrong about the "won't be big" part.
-- **GNU + Linux.** Torvalds' kernel plus the GNU userland tools formed a complete, free operating system. This is why purists call it **"GNU/Linux"** — the kernel is *Linux*, but most of the commands you type every day come from GNU.
+Linux is released under the **GPL** (an open source license), developed in the open by a global community. Nearly every production server runs Linux — as a DevOps engineer, the terminal is your home.
 
-!!! note "Kernel vs. Operating System"
-    Strictly speaking, **Linux is the kernel** — the core that talks to hardware, manages memory, schedules processes, and handles the filesystem. A **distribution** (Ubuntu, Debian, Red Hat, Alpine) bundles that kernel with GNU tools, a package manager, and default configuration to make a usable OS.
+!!! note "Kernel vs. distribution"
+    **Linux is the kernel** — the core that talks to hardware and manages processes. A **distribution** (Ubuntu, Debian, Alpine) bundles that kernel with GNU tools and a package manager to make a usable OS.
 
-### Linux as an open source project
+### The filesystem hierarchy
 
-Linux is released under the **GNU General Public License (GPL v2)**. This is what "open source" means in practice:
-
-| Freedom | What it means for you |
-|---|---|
-| **Use** | Run it for any purpose, on any number of machines, for free |
-| **Study** | Read the actual source code to see exactly how it works |
-| **Modify** | Change it to fit your needs |
-| **Share** | Redistribute the original or your modified version |
-
-The GPL adds one crucial rule — **copyleft**: if you distribute a modified version, you must release your changes under the same license. This prevents anyone from taking Linux private, and it's a big reason the ecosystem stayed healthy and collaborative.
-
-Linux is developed in the open by a global community — thousands of contributors, from hobbyists to engineers at Intel, Google, Red Hat, and IBM, all submitting patches to a shared codebase. Torvalds still oversees the kernel, and he created **Git** in 2005 specifically to manage its development (you'll use Git on Day 07).
-
-!!! tip "Why this matters for DevOps"
-    Nearly every server in production runs Linux — AWS, Google Cloud, Azure, and DigitalOcean all default to it. It's free, scriptable, stable, and transparent. As a DevOps engineer you'll live in a Linux terminal, so understanding *why* it's built the way it is makes the "how" much easier to reason about.
-
-### The Linux filesystem hierarchy
-
-Unlike Windows, which has multiple drive letters (`C:\`, `D:\`), Linux has a **single tree** that starts at the root, written `/`. Everything — every disk, device, and file — hangs off that one root.
-
-The layout isn't random. It follows the **Filesystem Hierarchy Standard (FHS)**, a specification that defines what belongs where. Because distributions follow the FHS, you can sit down at an unfamiliar server and still know that configs are in `/etc` and logs are in `/var/log`.
+Unlike Windows (`C:\`, `D:\`), Linux has a **single tree** starting at the root, `/`. Everything hangs off it. The layout follows the **Filesystem Hierarchy Standard (FHS)**, so any Linux box is familiar: configs in `/etc`, logs in `/var/log`.
 
 ```
 /
 ├── bin/    → essential user commands (ls, cp, cat)
-├── sbin/   → essential system/admin commands (fdisk, ip, reboot)
 ├── etc/    → system-wide configuration files
 ├── home/   → regular users' home directories (/home/vagrant)
-├── root/   → the root user's home directory (NOT the same as /)
-├── var/    → variable data: logs, caches, spool, databases
+├── root/   → the root user's home directory
+├── var/    → variable data: logs, caches, databases
 ├── tmp/    → temporary files, wiped on reboot
 ├── usr/    → user-installed programs, libraries, docs
-├── opt/    → optional / third-party software packages
-├── lib/    → shared libraries needed by binaries in /bin and /sbin
+├── opt/    → optional / third-party software
 ├── boot/   → kernel and bootloader files
-├── dev/    → device files (disks, terminals, null)
-├── proc/   → virtual filesystem: live kernel & process info
-├── sys/    → virtual filesystem: hardware & kernel settings
-├── mnt/    → temporary mount point for filesystems
-└── media/  → auto-mounted removable media (USB, CD)
+├── dev/    → device files (disks, terminals, /dev/null)
+├── proc/   → virtual: live kernel & process info
+└── mnt/, media/ → mount points for other filesystems
 ```
 
-### Important directories and their use cases
-
-These are the ones you'll actually touch as a DevOps engineer:
-
-| Directory | What lives here | When you'll use it |
-|---|---|---|
-| `/etc` | System & service configuration (`sshd_config`, `nginx/`, `fstab`) | Configuring services, changing SSH/network settings |
-| `/var/log` | Log files from the system and services | Debugging — *always* the first place to look when something breaks |
-| `/home` | Per-user home directories, dotfiles, SSH keys | Day-to-day work, storing scripts, `~/.ssh/` keys |
-| `/usr/bin`, `/usr/local/bin` | Installed program binaries | Finding where a command lives (`which nginx`) |
-| `/tmp` | Scratch space, cleared on reboot | Temporary files in scripts — never store anything important |
-| `/proc` | Live view of the running kernel & processes | Inspecting a process (`/proc/<pid>/`), checking `cpuinfo` / `meminfo` |
-| `/dev` | Device files, including `/dev/null` and disks | Redirecting output to `/dev/null`, referencing disks |
-| `/opt` | Self-contained third-party apps | Where some vendor software installs itself |
-
-!!! tip "The two directories you'll open most"
-    When a service misbehaves, `/etc` (its config) and `/var/log` (its logs) answer 90% of "why isn't this working?" questions. Build the habit now.
-
-!!! note "Everything is a file"
-    A Unix idea Linux inherited: hardware devices, running processes, and kernel settings are all exposed *as files*. That's why `/dev`, `/proc`, and `/sys` exist — you can read a process's memory usage or a disk's info with the same tools you use on a text file. It's what makes Linux so scriptable.
+The two you'll open most: **`/etc`** (a service's config) and **`/var/log`** (its logs) answer 90% of "why isn't this working?"
 
 ---
 
-## Lab · ~45 min
+## Lab · ~50 min
 
 Do everything below **inside your Vagrant VM** from Day 01 (`vagrant ssh`).
 
-### Step 1 — Stand at the root and look around
+### Step 1 — Navigate the filesystem
 
 ```bash
-cd /
-ls -l                 # every top-level FHS directory, one per line
-ls -l / | wc -l       # roughly how many top-level entries exist
+pwd                      # where am I? (print working directory)
+cd /                     # go to the root
+ls                       # list the top-level FHS directories
+ls -l                    # long form: permissions, owner, size, date
+ls -la                   # also show hidden (dot) files
+cd /var/log && pwd       # jump somewhere and confirm
+cd                       # bare cd → back to your home directory
+cd -                     # toggle back to the previous directory
 ```
 
-Compare what you see against the tree in the theory section. Every distro follows the same shape.
+`.` means "here", `..` means "one level up", `~` means "my home":
 
-### Step 2 — Explore configuration in /etc
+```bash
+cd ~            # home
+cd ..           # up one
+cd ../../etc    # relative path hopping
+```
+
+### Step 2 — Look around and find things
 
 ```bash
 cd /etc
-ls | head -30                 # a sample of what's configured on this box
-ls -d */                      # config directories (nginx/, ssh/, apt/ ...)
+ls -d */                     # only the sub-directories
+cat os-release               # dump a small file (which distro is this?)
+less services                # page through a big file (q to quit)
 
-# Look at real config files
-cat /etc/os-release           # which distro & version is this?
-cat /etc/hostname             # the machine's name
-less /etc/ssh/sshd_config     # the SSH server config (q to quit)
+# Find files by name or type
+find /etc -name "*.conf" 2>/dev/null | head   # config files under /etc
+which ls                                       # where does a command live?
+tree -L 1 /                                     # visualize the tree, 1 level deep
 ```
 
-Notice these are all plain text — Linux config is human-readable and editable.
+If `tree` is missing: `sudo apt update && sudo apt install -y tree`.
 
-### Step 3 — Read the logs in /var/log
+### Step 3 — Create files and directories
 
 ```bash
-cd /var/log
-ls -lh                        # log files with human-readable sizes
+cd ~ && mkdir -p lab/day02 && cd lab/day02
 
-# The main system journal
-sudo tail -20 /var/log/syslog # last 20 lines
-sudo tail -f /var/log/syslog  # live-follow (Ctrl+C to stop)
+touch notes.txt              # create an empty file
+mkdir -p project/src project/docs   # -p makes parent dirs as needed
+ls -R                        # recursive listing of what you built
 
-# Authentication events (logins, sudo usage)
-sudo tail -20 /var/log/auth.log
+echo "hello devops" > notes.txt      # write (overwrite)
+echo "second line" >> notes.txt      # append
+cat notes.txt
 ```
 
-### Step 4 — See "everything is a file" in action
+### Step 4 — Copy, move, rename, remove
 
 ```bash
-# /proc — live process and kernel info, generated on the fly
-cat /proc/cpuinfo | head -20   # your CPU
-cat /proc/meminfo | head -5    # your memory
-cat /proc/uptime               # seconds since boot
+cp notes.txt notes.bak               # copy
+mv notes.bak project/docs/           # move into a directory
+mv notes.txt readme.txt              # rename (mv = move/rename)
+cp -r project project-copy           # -r to copy a directory tree
 
-# Each running process has a directory under /proc
-ls /proc/1/                    # PID 1 = the init process (systemd)
-
-# /dev — device files
-ls -l /dev/null                # the "black hole" — discards anything written to it
-echo "this disappears" > /dev/null
+rm readme.txt                        # remove a file
+rm -r project-copy                   # remove a directory tree
+ls -R
 ```
 
-### Step 5 — Find where commands actually live
+!!! warning "`rm` is forever"
+    There is no recycle bin. `rm -rf` on the wrong path is how people ruin their day. Double-check before you press Enter — especially with `*` or `sudo`.
+
+### Step 5 — Redirection and pipes
+
+Commands send output to the screen by default. You can redirect it to a file, or **pipe** it into another command:
 
 ```bash
-which ls                       # a core GNU utility
-which vagrant 2>/dev/null      # (nothing — vagrant is on your host, not the VM)
-type cd                        # some commands are shell built-ins, not files
-
-# Confirm the binaries sit in the FHS-defined locations
-ls -l /bin/ls /usr/bin/grep
+ls /etc > etc-listing.txt        # save output to a file (overwrite)
+ls /etc >> etc-listing.txt       # append instead
+ls /nope 2>errors.txt            # send errors (stream 2) to a file
+ls /etc | wc -l                  # pipe: count how many entries /etc has
 ```
 
-### Step 6 — Map the tree yourself
+A **pipe** (`|`) feeds one command's output into the next. This composition is the heart of the command line.
+
+### Step 6 — Text tools: grep, cut, sort, uniq
+
+Real admin work is reading and filtering text. `/etc/passwd` (one line per account) is a great sandbox:
 
 ```bash
-# Install tree if it's not there, then view 1 level deep
-sudo apt update && sudo apt install -y tree
-tree -L 1 /
-tree -L 1 /var
+wc -l /etc/passwd                    # how many accounts?
+grep bash /etc/passwd                # lines containing "bash"
+grep -v nologin /etc/passwd          # INVERT: lines NOT containing nologin
+cut -d: -f1 /etc/passwd              # field 1 (delimiter ":") → usernames
+cut -d: -f1,7 /etc/passwd            # username + login shell
+
+# Which shells are in use, most common first?
+cut -d: -f7 /etc/passwd | sort | uniq -c | sort -rn
 ```
+
+| Tool | One-line purpose |
+|---|---|
+| `grep` | Find lines matching a pattern (`-i` ignore case, `-v` invert, `-r` recursive) |
+| `cut` | Slice out fields by delimiter |
+| `sort` | Sort lines (`-r` reverse, `-n` numeric) |
+| `uniq` | Collapse/count adjacent duplicates (sort first!) |
+| `wc` | Count lines/words/bytes (`-l` lines) |
+| `head` / `tail` | First / last N lines (`tail -f` follows live) |
+
+### Step 7 — Edit streams with sed & awk
+
+`sed` changes text; `awk` works with columns/fields:
+
+```bash
+# Build a tiny sample log
+cat > access.log << 'EOF'
+10.0.0.1 GET /home 200
+10.0.0.2 GET /login 200
+10.0.0.1 POST /login 401
+10.0.0.3 GET /home 500
+EOF
+
+sed 's/GET/FETCH/g' access.log       # find & replace in the stream
+awk '{print $1}' access.log          # first field of every line
+awk '$4 >= 400 {print $2, $4}' access.log   # only error responses (status ≥ 400)
+awk '{print $1}' access.log | sort | uniq -c   # requests per IP
+```
+
+!!! tip "grep finds, sed changes, awk computes"
+    A rough rule: **grep** to *find* lines, **sed** to *change* lines, **awk** when you care about *fields/columns or math*. Most one-liners chain two or three with pipes.
 
 ---
 
@@ -175,22 +182,15 @@ tree -L 1 /var
 
 In `my-progress/day-02.md`:
 
-1. **History & open source:** In 3–4 sentences, tie together Unix, GNU, and Linux, and explain what the GPL's *copyleft* rule requires. Why does copyleft matter for a project the size of Linux?
+1. **Watch — the history of GNU & open source:** Watch [this video on the history of GNU and open source software](https://www.youtube.com/watch?v=sQDvkd2wtxU). In 3–4 sentences, tie together Unix, GNU, and Linux, and explain what the GPL's *copyleft* rule requires. Why does copyleft matter for a project the size of Linux?
 2. **Research a directory:** Run `man hier` and pick **three** top-level directories you did *not* open during the lab (e.g. `/srv`, `/run`, `/boot`, `/opt`, `/mnt`). For each, write one line on its purpose and note whether it currently exists on your VM.
-
-Push your answers:
-
-```bash
-git add my-progress/day-02.md
-git commit -m "day-02: linux history and filesystem hierarchy"
-git push origin main
-```
+3. **Hands-on — build a one-liner pipeline:** Using **only** commands from today, write a **single pipeline** (chained with `|`) that answers a real question about your system. For example: *the top 3 most common login shells on this machine*, or *how many `.conf` files live under `/etc`*. Run it, paste the command and its output, and explain each stage of the pipe in one line.
 
 ---
 
 ## Further Reading
 
 - [The Filesystem Hierarchy Standard (FHS 3.0)](https://refspecs.linuxfoundation.org/FHS_3.0/fhs/index.html) — the actual spec
+- `man hier` — the filesystem hierarchy, right on your machine
 - [Linus Torvalds' original 1991 announcement](https://groups.google.com/g/comp.os.minix/c/dlNtH7RRrGA/m/SwRavCzVE7gJ) — the "just a hobby" email
-- [GNU: What is Free Software?](https://www.gnu.org/philosophy/free-sw.html)
-- `man hier` — the manual page describing the filesystem hierarchy, right on your machine
+- [regexr.com](https://regexr.com/) — build and test regular expressions interactively

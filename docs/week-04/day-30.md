@@ -212,12 +212,6 @@ The course is complete. For your final submission to `my-progress/day-30.md`:
 3. What is your plan for the next 30 days after this course?
 4. Post your final project's GitHub link in the Discord channel.
 
-```bash
-git add my-progress/day-30.md
-git commit -m "day-30: course complete"
-git push origin main
-```
-
 ---
 
 **Congratulations.** You went from setup to a deployed, monitored, CI/CD-backed application in 30 days. That is the real DevOps workflow. Everything from here is deepening what you've already started.

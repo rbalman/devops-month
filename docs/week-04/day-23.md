@@ -210,16 +210,6 @@ In `my-progress/day-23.md`:
 3. Upload your `my-progress/` directory to S3 as a backup (`aws s3 sync my-progress/ s3://<bucket>/backup/`). Paste the command and the output.
 4. Why would you store Terraform state in S3 instead of locally?
 
-```bash
-# Don't forget to clean up S3 bucket
-aws s3 rm s3://$BUCKET_NAME --recursive
-aws s3 rb s3://$BUCKET_NAME
-
-git add my-progress/day-23.md
-git commit -m "day-23: aws vpc s3 security groups"
-git push origin main
-```
-
 ---
 
 ## Further Reading

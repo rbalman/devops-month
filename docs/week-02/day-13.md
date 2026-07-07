@@ -253,13 +253,6 @@ In `my-progress/day-13.md`:
 3. Extend the `myapp` Dockerfile to accept an `APP_ENV` environment variable (development/production) and print it in the JSON response. Build and test it.
 4. What does `.dockerignore` do? What would happen if you accidentally copied a `.git/` directory or `.env` file into an image?
 
-```bash
-cp -r ~/docker-labs/myapp my-progress/docker-myapp
-git add my-progress/
-git commit -m "day-13: dockerfile and image building"
-git push origin main
-```
-
 ---
 
 ## Further Reading

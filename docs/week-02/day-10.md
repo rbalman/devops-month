@@ -223,12 +223,6 @@ In `my-progress/day-10.md`:
 3. Modify your static site to serve a second page at `/about`. Add a link from the main page to `/about`. Test it with curl.
 4. Make a request to a path that doesn't exist. What does the Nginx error log show? What HTTP status code is returned?
 
-```bash
-git add my-progress/day-10.md
-git commit -m "day-10: nginx web server"
-git push origin main
-```
-
 ---
 
 ## Further Reading

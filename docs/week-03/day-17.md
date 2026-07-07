@@ -282,13 +282,6 @@ In `my-progress/day-17.md`, answer:
 - What does `become: true` do and when is it needed?
 - Why is `cache_valid_time` useful in the `apt` module?
 
-```bash
-cp ~/ansible-labs/database.yml my-progress/ansible-labs/
-git add my-progress/
-git commit -m "day-17: ansible playbooks"
-git push origin main
-```
-
 ---
 
 ## Further Reading

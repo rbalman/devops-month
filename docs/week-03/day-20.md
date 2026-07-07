@@ -348,13 +348,6 @@ In `my-progress/day-20.md`:
 3. Extend your module to accept a `healthcheck_path` variable and add a label to the container with its value.
 4. What is the `count` meta-argument? What is `for_each` and when would you use it instead of `count`?
 
-```bash
-cp -r ~/terraform-labs/modules-demo my-progress/terraform-modules
-git add my-progress/
-git commit -m "day-20: terraform state modules variables"
-git push origin main
-```
-
 ---
 
 ## Further Reading

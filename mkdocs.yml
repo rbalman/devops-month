@@ -58,8 +58,8 @@ nav:
   - Schedule: schedule.md
   - Week 1 — Linux System Administration:
     - Day 01 · DevOps Intro & Setup: week-01/day-01.md
-    - Day 02 · Linux History & Filesystem: week-01/day-02.md
-    - Day 03 · Everything Is a File — Text Processing: week-01/day-03.md
+    - Day 02 · Filesystem, Files & Text: week-01/day-02.md
+    - Day 03 · Process & Disk Management: week-01/day-03.md
     - Day 04 · Users, Groups & Permissions: week-01/day-04.md
     - Day 05 · The Shell — Types, Profiles & Environment: week-01/day-05.md
     - Day 06 · Shell Scripting I — Programming Basics: week-01/day-06.md

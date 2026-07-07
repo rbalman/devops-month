@@ -172,12 +172,6 @@ In `my-progress/day-08.md`:
 3. List all ports currently listening on your machine. Which process is listening on port 22? On port 80?
 4. What is the difference between a port and an IP address? Explain it in one paragraph as if speaking to a non-technical person.
 
-```bash
-git add my-progress/day-08.md
-git commit -m "day-08: networking basics I"
-git push origin main
-```
-
 ---
 
 ## Further Reading
