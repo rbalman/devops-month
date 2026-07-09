@@ -156,33 +156,51 @@ Aliases and functions defined at the prompt vanish when the shell closes. Put th
 
 Every command talks through three **standard streams**. Picture a program as a box with one intake pipe and two output pipes:
 
-- **stdin** *(standard input)* — where it **reads** input from. Default: your keyboard.
-- **stdout** *(standard output)* — where it writes its **normal results**. Default: your screen.
-- **stderr** *(standard error)* — where it writes **error and diagnostic messages**. Default: your screen too.
+- **stdin** *(standard input, fd 0)* — where it **reads** input. Default: your keyboard.
+- **stdout** *(standard output, fd 1)* — where it writes **normal results**. Default: your screen.
+- **stderr** *(standard error, fd 2)* — where it writes **errors and diagnostics**. Default: your screen too.
 
-The two output streams are separate on purpose — it lets you keep the real results while throwing errors away (or the reverse). They both land on your screen by default, which is why normal output and errors look mixed together until you redirect them apart. Each stream has a number, its **file descriptor**: `0` = stdin, `1` = stdout, `2` = stderr.
+The two output streams are separate on purpose — it lets you save the real results while throwing errors away (or the reverse). Both land on your screen by default, which is why normal output and errors look mixed together until you redirect them apart. Each stream has a number, its **file descriptor**: `0` = stdin, `1` = stdout, `2` = stderr.
 
-**Redirection** re-plumbs a stream to a file instead of the screen:
+**stdout — normal output**
 
-```bash
-date > out.txt                 # stdout → file, overwrite   ( '>' is short for '1>' )
-echo "one more line" >> out.txt  # stdout → file, append
-ls /nope 2> err.txt            # stderr → file (the "cannot access" message)
-ls /etc /nope > out.txt 2> err.txt   # results and errors into separate files
-ls /etc /nope > all.txt 2>&1   # BOTH streams into one file
-sort < out.txt                 # feed a file into stdin
-```
-
-`/dev/null` is the system "black hole" — redirect to it to discard output you don't care about:
+`>` sends it to a file (overwriting); `>>` appends:
 
 ```bash
-find / -name "*.conf" 2>/dev/null   # show the matches, silently drop "Permission denied" errors
+date                             # prints to the screen (stdout)
+date > now.txt                   # overwrite now.txt with the output   ( '>' is short for '1>' )
+echo "another line" >> now.txt   # append to it
 ```
 
-!!! tip "How to read `2>&1`"
-    "Send stream **2** (stderr) to wherever stream **1** (stdout) is currently going." Order matters: put it **after** the `>` that sets where stdout goes, or the errors won't follow.
+**stderr — error messages**
 
-A pipe (`|`, from Day 2) is just redirection between two commands: it connects the **stdout** of the left command to the **stdin** of the right one. (A plain pipe carries stdout only — not stderr.)
+`2>` redirects it. Watch normal output and errors go to different places:
+
+```bash
+ls /etc /nope                    # /etc lists (stdout), /nope errors (stderr) — both on screen
+ls /etc /nope 2> err.txt         # the error goes to err.txt; the /etc listing still hits the screen
+ls /nope 2>/dev/null             # discard the error entirely  ( /dev/null = the "black hole" )
+ls /etc /nope > all.txt 2>&1     # merge BOTH streams into one file
+```
+
+!!! tip "Order matters in `2>&1`"
+    Read it as "send stream **2** (stderr) to wherever stream **1** (stdout) is going." Put it **after** the `>` that sets where stdout goes: `> all.txt 2>&1` works, but `2>&1 > all.txt` leaves errors on the screen because stdout hadn't been redirected yet.
+
+**stdin — input**
+
+By default a command reads what you type (end input with `Ctrl-D`). You can instead feed it a file with `<`, an inline block with `<<` (a *here-document*), or another command's output with a pipe `|`:
+
+```bash
+sort                    # reads what you type; Ctrl-D to finish
+sort < names.txt        # read stdin from a file
+sort << EOF             # read stdin from an inline here-document
+banana
+apple
+EOF
+ls /etc | sort          # read stdin from another command's output (a pipe)
+```
+
+A pipe wires the **stdout** of the left command into the **stdin** of the right one — and it carries stdout only, not stderr.
 
 ### Exit / status codes
 
