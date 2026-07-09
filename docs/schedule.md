@@ -12,7 +12,7 @@ Each session is **1–1.5 hours** of focused work: ~20 min theory + ~50 min hand
 | [Day 02](week-01/day-02.md) | Filesystem, Files & Text | History, FHS, navigation, file manipulation, `grep`/`sed`/`awk`, pipes |
 | [Day 03](week-01/day-03.md) | Process & Disk Management | `ps`/`top`/`kill`, signals, `df`/`du`/`lsblk`, load average |
 | [Day 04](week-01/day-04.md) | Users, Groups & Permissions | Users/groups, `chmod`/`chown`, `rwx`, basic networking checks |
-| [Day 05](week-01/day-05.md) | The Shell | Shell types, profiles, env vars, exit codes, aliases, functions |
+| [Day 05](week-01/day-05.md) | The Shell | Shell types, ~/.bashrc config, env vars, exit codes, aliases, functions |
 | [Day 06](week-01/day-06.md) | Shell Scripting I | Variables, input, operators, command substitution |
 | [Day 07](week-01/day-07.md) | Shell Scripting II | Conditionals, loops, functions, arguments, cron |
 

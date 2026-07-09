@@ -341,8 +341,6 @@ terraform destroy
 
 ## Assignment
 
-In `my-progress/day-20.md`:
-
 1. What is the difference between `terraform.tfvars` and environment variables for providing variable values?
 2. What happens if two team members run `terraform apply` at the same time against the same state file? How does remote state with locking solve this?
 3. Extend your module to accept a `healthcheck_path` variable and add a label to the container with its value.

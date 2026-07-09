@@ -219,7 +219,7 @@ Notice how each script adds exactly one new idea on top of the last. That's the 
 
 ## Assignment
 
-Create these in `my-progress/day-06/` and commit the scripts.
+Create these scripts and commit them.
 
 1. **`profile.sh`** — ask the user for their name and their favorite DevOps tool (`read`), store each in a variable, then print a friendly two-line summary using variable substitution.
 2. **`calc.sh`** — ask for two numbers and print their **sum, difference, and product** using arithmetic operators. *(Bonus: also print today's date using command substitution.)*

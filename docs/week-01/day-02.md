@@ -180,8 +180,6 @@ awk '{print $1}' access.log | sort | uniq -c   # requests per IP
 
 ## Assignment
 
-In `my-progress/day-02.md`:
-
 1. **Watch — the history of GNU & open source:** Watch [this video on the history of GNU and open source software](https://www.youtube.com/watch?v=sQDvkd2wtxU). In 3–4 sentences, tie together Unix, GNU, and Linux, and explain what the GPL's *copyleft* rule requires. Why does copyleft matter for a project the size of Linux?
 2. **Research a directory:** Run `man hier` and pick **three** top-level directories you did *not* open during the lab (e.g. `/srv`, `/run`, `/boot`, `/opt`, `/mnt`). For each, write one line on its purpose and note whether it currently exists on your VM.
 3. **Hands-on — build a one-liner pipeline:** Using **only** commands from today, write a **single pipeline** (chained with `|`) that answers a real question about your system. For example: *the top 3 most common login shells on this machine*, or *how many `.conf` files live under `/etc`*. Run it, paste the command and its output, and explain each stage of the pipe in one line.

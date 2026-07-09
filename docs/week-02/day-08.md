@@ -165,8 +165,6 @@ curl -w "\nTotal time: %{time_total}s\n" -o /dev/null -s http://google.com
 
 ## Assignment
 
-In `my-progress/day-08.md`:
-
 1. What is your machine's private IP and what network interface carries it?
 2. Run `traceroute 8.8.8.8`. How many hops does it take? What is the first hop (your gateway)?
 3. List all ports currently listening on your machine. Which process is listening on port 22? On port 80?

@@ -178,8 +178,6 @@ curl -v https://google.com 2>&1 | grep -E "subject|issuer|expire"
 
 ## Assignment
 
-In `my-progress/day-09.md`:
-
 1. Add your `devops_month` public key to your GitHub account (Settings → SSH keys). Test with `ssh -T git@github.com`. Paste the response.
 2. Run `dig github.com`. What is the IP returned? What TTL does the record have, and what does TTL mean?
 3. What DNS server is your machine currently using? Where is this configured?

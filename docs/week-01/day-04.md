@@ -4,6 +4,7 @@
 
 - Understand why Linux is multi-user and how users and groups are modeled
 - Create and manage users and groups
+- Set passwords and switch between accounts (`passwd`, `su`, `sudo`)
 - Read and modify ownership and permissions with `chmod` and `chown`
 - Translate between symbolic (`rwx`) and numeric (`755`) permissions
 - Use a handful of everyday networking commands to check connectivity
@@ -44,6 +45,23 @@ The `x` means the real password hash lives in `/etc/shadow`, readable only by ro
 - **System accounts** (low UIDs, e.g. `www-data`) run services, not people. They usually have `nologin` as their shell.
 - Every user has one **primary group** and can belong to many **supplementary groups** (e.g. `sudo`, `docker`).
 
+### Passwords and becoming another user
+
+`useradd` creates an account but leaves it **locked** — you set a password before anyone can log in as that user:
+
+```bash
+sudo passwd alice        # set (or reset) alice's password
+```
+
+To *act as* another user, switch into their session instead of prefixing every command:
+
+```bash
+su - alice               # become alice (prompts for alice's password); '-' loads her environment
+sudo -i                  # open a root shell using YOUR sudo rights (no root password needed)
+sudo -u alice whoami     # run a single command as alice, without fully switching
+exit                     # return to your own session
+```
+
 ### Permissions: reading `rwxr-xr--`
 
 Every file carries permissions for three classes: **owner (user)**, **group**, and **others**.
@@ -66,7 +84,7 @@ Each class has three bits:
 So `rwxr-xr--` = **754** (owner 7, group 5, others 4).
 
 !!! note "Beyond the basics"
-    Linux also has **special bits** (setuid/setgid/sticky), **ACLs**, and **file attributes** for finer-grained control. You don't need them yet — you'll meet them in today's stretch assignment and in later security work. Master the standard `rwx` model first.
+    Linux also has **special bits** (setuid/setgid/sticky), **ACLs**, and **file attributes** for finer-grained control. You don't need them yet — they're written up in the [Advanced Topics](#advanced-topics) section below and reappear in today's stretch assignment and later security work. Master the standard `rwx` model first.
 
 ---
 
@@ -88,6 +106,7 @@ grep sudo /etc/group                                    # who can sudo
 sudo groupadd webdev
 sudo useradd -m -s /bin/bash alice   # -m creates home, -s sets shell
 sudo useradd -m -s /bin/bash bob
+sudo passwd alice                    # set a login password — new accounts start locked
 sudo usermod -aG webdev alice        # ADD alice to webdev (-a = append!)
 sudo usermod -aG webdev bob
 
@@ -151,6 +170,9 @@ ls -l report.txt
 sudo -u alice cat report.txt        # alice is owner → works
 sudo useradd -m carol 2>/dev/null
 sudo -u carol cat report.txt        # carol is 'other' → Permission denied
+
+# Fully switch into a user's session instead of prefixing every command:
+su - alice                          # become alice (prompts for her password); 'exit' returns
 ```
 
 ### Step 6 — Everyday networking checks
@@ -169,9 +191,19 @@ If `ping 8.8.8.8` works but `ping google.com` doesn't, the network is fine but *
 
 ---
 
-## Assignment
+## Advanced Topics
 
-In `my-progress/day-04.md`:
+We stopped at the standard `rwx` model on purpose. These are the next controls to explore on your own — read the linked resource for each:
+
+- **Special permission bits (setuid, setgid, sticky)** — a fourth permission class for shared dirs and privileged binaries → [Red Hat — SUID, SGID, and sticky bit](https://www.redhat.com/en/blog/suid-sgid-sticky-bit)
+- **umask** — the mask that decides the default permissions of newly created files → [ArchWiki — File permissions § umask](https://wiki.archlinux.org/title/File_permissions_and_attributes#umask)
+- **ACLs (Access Control Lists)** — per-user / per-group permissions beyond the single owner+group → [Red Hat — Introduction to Linux ACLs](https://www.redhat.com/en/blog/linux-access-control-lists) · [`man 5 acl`](https://man7.org/linux/man-pages/man5/acl.5.html)
+- **File attributes (`chattr`/`lsattr`)** — filesystem flags like immutable (`+i`) and append-only (`+a`) that even root must lift → [`man 1 chattr`](https://man7.org/linux/man-pages/man1/chattr.1.html)
+- **sudo & the sudoers file** — controlled privilege escalation, edited safely with `visudo` → [`man 5 sudoers`](https://man7.org/linux/man-pages/man5/sudoers.5.html)
+
+---
+
+## Assignment
 
 1. **Hands-on — a real permissions scenario:** Create a group `team` and two users in it. Create a directory `/srv/team` owned by `root:team` and a file inside it. Set permissions so that:
    - members of `team` can **read and write** files in the directory,

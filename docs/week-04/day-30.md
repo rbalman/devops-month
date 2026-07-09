@@ -205,7 +205,7 @@ That becomes your strongest interview talking point.
 
 ## Final Assignment
 
-The course is complete. For your final submission to `my-progress/day-30.md`:
+The course is complete. For your final submission:
 
 1. What was the most valuable thing you learned in this course?
 2. What was the most confusing — and do you understand it now?

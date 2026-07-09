@@ -206,8 +206,6 @@ sudo systemctl start nginx
 
 ## Assignment
 
-In `my-progress/day-11.md`:
-
 1. What is the difference between a self-signed certificate and a Let's Encrypt certificate? When is each appropriate?
 2. What does `Options -Indexes` do in an Apache config? Why is it a good security practice?
 3. What does the `RewriteRule ^(.*)$ https://%{HTTP_HOST}$1 [R=301,L]` rule do? Break down each part.

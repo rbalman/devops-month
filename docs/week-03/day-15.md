@@ -216,8 +216,6 @@ cat from-vm.txt
 
 ## Assignment
 
-In `my-progress/day-15.md`:
-
 1. Write a `Vagrantfile` that provisions a VM with:
    - 1 GB RAM, 2 CPUs
    - Static IP `192.168.56.20`

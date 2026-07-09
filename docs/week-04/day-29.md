@@ -415,7 +415,7 @@ curl http://$EC2_IP:9090      # Prometheus UI
 
 ## Assignment
 
-Document your final project in `my-progress/day-29.md`:
+Document your final project:
 
 1. Paste the URL of your deployed app
 2. Screenshot your Grafana dashboard (or paste the exported JSON)

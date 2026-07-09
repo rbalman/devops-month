@@ -216,8 +216,6 @@ curl http://localhost/nginx_status
 
 ## Assignment
 
-In `my-progress/day-10.md`:
-
 1. What is the difference between `systemctl reload nginx` and `systemctl restart nginx`? When would you use each?
 2. What does `try_files $uri $uri/ =404;` mean? Break it down step by step.
 3. Modify your static site to serve a second page at `/about`. Add a link from the main page to `/about`. Test it with curl.

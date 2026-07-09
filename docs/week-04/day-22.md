@@ -191,8 +191,6 @@ aws ec2 stop-instances --instance-ids $INSTANCE_ID
 
 ## Assignment
 
-In `my-progress/day-22.md`:
-
 1. What is the difference between an IAM user and an IAM role? Give an example of when you'd use each.
 2. What does a Security Group do? What is the difference between inbound and outbound rules?
 3. Why is it bad practice to use the AWS root account for daily operations?

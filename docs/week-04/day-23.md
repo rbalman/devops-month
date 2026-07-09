@@ -203,8 +203,6 @@ aws ec2 delete-vpc --vpc-id $CUSTOM_VPC
 
 ## Assignment
 
-In `my-progress/day-23.md`:
-
 1. What is the difference between a public subnet and a private subnet in AWS?
 2. What is the difference between a Security Group and a Network ACL? Which is stateful?
 3. Upload your `my-progress/` directory to S3 as a backup (`aws s3 sync my-progress/ s3://<bucket>/backup/`). Paste the command and the output.

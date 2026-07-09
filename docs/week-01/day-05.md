@@ -1,10 +1,11 @@
-# Day 05 · The Shell — Types, Profiles & Environment
+# Day 05 · The Shell — Types, Config & Environment
 
 ## Learning Objectives
 
 - Understand what a shell is and the difference between common shells
-- Know how login vs. non-login and interactive vs. non-interactive shells load config, and in what order
+- Know where your interactive shell config lives (`~/.bashrc`) and what belongs in it
 - Work with environment variables and understand how they're inherited
+- Redirect the standard streams (stdin, stdout, stderr) to and from files
 - Read exit/status codes and chain commands based on them
 - Create aliases and shell functions to speed up your daily work
 
@@ -36,48 +37,66 @@ cat /etc/shells    # shells installed on this system
 !!! note "SHELL vs. \$0"
     `$SHELL` is your *configured default* shell — it doesn't change just because you launched another one. `$0` reflects the shell **actually running** the current session. Start `sh` from inside bash and `$0` changes while `$SHELL` does not.
 
-### Login vs. non-login, interactive vs. non-interactive
+### Shell config files
 
-How the shell starts decides **which config files it reads**. Four combinations matter:
+When bash starts, it reads a config file so your customisations — aliases, functions, `PATH` tweaks — are there every time. Bash actually has several such files, but for now we'll use just one:
 
-- **Login shell** — started when you log in (SSH, console, `su -`). Loads your profile files.
-- **Non-login shell** — a shell you open from within an existing session (a new terminal tab, running `bash`).
-- **Interactive** — you type at a prompt.
-- **Non-interactive** — running a script; no prompt.
+- **`~/.bashrc`** — your personal bash config. This is where you put aliases, functions, and environment tweaks. It's re-read every time you open an interactive shell.
 
-### Profiles and their precedence
-
-For **bash**, startup files are read in this order:
-
-**Login shell** reads the first profile it finds, then your bashrc if that profile sources it:
-
-```
-/etc/profile                         ← system-wide, all users
-   └─ /etc/profile.d/*.sh            ← drop-in scripts
-~/.bash_profile   → ~/.bash_login → ~/.profile
-   (only the FIRST one that exists is read)
+```bash
+ls -la ~ | grep bashrc     # your ~/.bashrc
+source ~/.bashrc           # re-read it in the current shell after editing
 ```
 
-**Interactive non-login shell** (new terminal tab) reads:
+!!! tip "The practical rule for now"
+    Put your **aliases, functions, `PATH` additions, and environment variables** in `~/.bashrc`. Edit the file, then run `source ~/.bashrc` to apply the changes without logging out.
 
+    Bash has other startup files (`~/.profile`, `~/.bash_profile`, `/etc/profile`) that load in a specific order depending on *how* the shell was started. You don't need them yet — see [Advanced Topics](#advanced-topics) if you're curious.
+
+### Variables
+
+A variable stores a value under a name. Set it with `name=value` (no spaces around `=`) and read it back with `$name`. By default it's a **shell variable** — it lives only in the current shell.
+
+```bash
+name="balman"      # set
+echo "$name"       # read
+unset name         # remove
 ```
-/etc/bash.bashrc                     ← system-wide
-~/.bashrc                            ← your per-user interactive config
+
+Bash also predefines variables that **control how the shell itself behaves and looks**, not data for other programs. The one you'll see most is `PS1`, your prompt:
+
+```bash
+echo "$PS1"                # your current prompt definition
+PS1='\u@\h:\w\$ '          # user@host:working-dir$  — the prompt changes instantly
 ```
 
-**Non-interactive shell** (a script) reads neither — it uses `$BASH_ENV` if set, otherwise nothing.
+Inside `PS1`, backslash escapes expand to live values: `\u` user, `\h` hostname, `\w` working dir, `\$` a `#` for root else `$`. Set it permanently in `~/.bashrc`.
 
-!!! tip "The practical rule"
-    Put **environment variables and `PATH`** in `~/.profile` (or `~/.bash_profile`) so they're set once at login and inherited everywhere. Put **aliases, functions, and prompt tweaks** in `~/.bashrc` so every interactive shell gets them. Most `~/.bash_profile` files simply `source ~/.bashrc` to get both.
+| Variable | Purpose |
+|---|---|
+| `PS1` | Primary prompt shown before each command |
+| `PS2` | Continuation prompt for multi-line commands (default `>`) |
+| `IFS` | Internal Field Separator — characters bash splits words on (space/tab/newline) |
+| `HISTSIZE` | How many commands to keep in the in-memory history |
+| `HISTFILE` | File where history is saved (`~/.bash_history`) |
+| `HISTCONTROL` | History cleanup rules, e.g. `ignoredups` |
+
+A few are **read-only** — bash sets them, you just read them:
+
+| Variable | Purpose |
+|---|---|
+| `$?` | Exit code of the last command (see below) |
+| `$$` | PID of the current shell |
+| `RANDOM` | A new random integer each time it's read |
+| `SECONDS` | Seconds since the shell started |
+| `BASH_VERSION` | Version of the running bash |
 
 ### Environment variables
 
-Variables hold values the shell and programs read. A **shell variable** is local to the current shell; an **environment variable** is `export`ed so child processes inherit it.
+An **environment variable** is a shell variable you've `export`ed so that child processes inherit it.
 
 ```bash
-name="balman"          # shell variable (not inherited)
-export EDITOR="vim"    # environment variable (inherited by children)
-echo "$name"
+export EDITOR="vim"    # exported → inherited by any program you launch
 printenv EDITOR
 env                    # list all environment variables
 ```
@@ -100,27 +119,20 @@ echo "$PATH"
 export PATH="$HOME/bin:$PATH"   # add your own bin dir, searched first
 ```
 
-### Exit / status codes
+### Variables vs. environment variables
 
-Every command returns a numeric **exit code** when it finishes. `0` means success; anything else (1–255) means some kind of failure. Scripts and automation live or die by this.
+The only difference is `export`:
 
-```bash
-ls /etc >/dev/null
-echo $?          # 0  → success
-
-ls /nope 2>/dev/null
-echo $?          # 2  → failure ($? holds the LAST command's code)
-```
-
-Chain commands based on the result:
+- A plain **shell variable** stays in the current shell and is invisible to programs and child shells you start. Use it for temporary values you need right here.
+- An **environment variable** is exported, so every child process inherits it. Use it when a program you launch needs to read the value (`PATH`, `EDITOR`, `AWS_REGION`, …).
 
 ```bash
-mkdir -p ~/lab && cd ~/lab       # run cd ONLY if mkdir succeeded
-ping -c1 host || echo "unreachable"   # run echo ONLY if ping failed
+myvar="local"          # shell variable
+export myexp="shared"  # environment variable
+bash -c 'echo "child sees: [$myvar] [$myexp]"'   # only myexp is visible
 ```
 
-!!! note "`$?` is a big deal"
-    In CI/CD pipelines a non-zero exit code is how a step reports failure and stops the pipeline. Getting exit codes right is the difference between a broken deploy that halts loudly and one that silently ships bad code.
+Rule of thumb: keep it a shell variable unless something you launch needs it — then `export`.
 
 ### Aliases and functions
 
@@ -140,6 +152,60 @@ mkcd ~/projects/newapp     # makes the dir AND enters it
 
 Aliases and functions defined at the prompt vanish when the shell closes. Put them in `~/.bashrc` to keep them permanently.
 
+### Standard streams: stdin, stdout, stderr
+
+Every command talks through three **standard streams**. Picture a program as a box with one intake pipe and two output pipes:
+
+- **stdin** *(standard input)* — where it **reads** input from. Default: your keyboard.
+- **stdout** *(standard output)* — where it writes its **normal results**. Default: your screen.
+- **stderr** *(standard error)* — where it writes **error and diagnostic messages**. Default: your screen too.
+
+The two output streams are separate on purpose — it lets you keep the real results while throwing errors away (or the reverse). They both land on your screen by default, which is why normal output and errors look mixed together until you redirect them apart. Each stream has a number, its **file descriptor**: `0` = stdin, `1` = stdout, `2` = stderr.
+
+**Redirection** re-plumbs a stream to a file instead of the screen:
+
+```bash
+date > out.txt                 # stdout → file, overwrite   ( '>' is short for '1>' )
+echo "one more line" >> out.txt  # stdout → file, append
+ls /nope 2> err.txt            # stderr → file (the "cannot access" message)
+ls /etc /nope > out.txt 2> err.txt   # results and errors into separate files
+ls /etc /nope > all.txt 2>&1   # BOTH streams into one file
+sort < out.txt                 # feed a file into stdin
+```
+
+`/dev/null` is the system "black hole" — redirect to it to discard output you don't care about:
+
+```bash
+find / -name "*.conf" 2>/dev/null   # show the matches, silently drop "Permission denied" errors
+```
+
+!!! tip "How to read `2>&1`"
+    "Send stream **2** (stderr) to wherever stream **1** (stdout) is currently going." Order matters: put it **after** the `>` that sets where stdout goes, or the errors won't follow.
+
+A pipe (`|`, from Day 2) is just redirection between two commands: it connects the **stdout** of the left command to the **stdin** of the right one. (A plain pipe carries stdout only — not stderr.)
+
+### Exit / status codes
+
+Besides its output streams, every command also reports a numeric **exit code** when it finishes. `0` means success; anything else (1–255) means some kind of failure. Scripts and automation live or die by this.
+
+```bash
+ls /etc >/dev/null
+echo $?          # 0  → success
+
+ls /nope 2>/dev/null
+echo $?          # 2  → failure ($? holds the LAST command's code)
+```
+
+Chain commands based on the result:
+
+```bash
+mkdir -p ~/lab && cd ~/lab       # run cd ONLY if mkdir succeeded
+ping -c1 host || echo "unreachable"   # run echo ONLY if ping failed
+```
+
+!!! note "`$?` is a big deal"
+    In CI/CD pipelines a non-zero exit code is how a step reports failure and stops the pipeline. Getting exit codes right is the difference between a broken deploy that halts loudly and one that silently ships bad code.
+
 ---
 
 ## Lab · ~45 min
@@ -152,26 +218,10 @@ Work **inside your Vagrant VM** (`vagrant ssh`).
 echo $0
 echo $SHELL
 cat /etc/shells
-ls -la ~ | grep -E '\.bash|\.profile'   # your startup files
+ls -la ~ | grep bashrc          # your ~/.bashrc config file
 ```
 
-### Step 2 — Watch precedence in action
-
-```bash
-# Add a marker to each file, then observe which loads
-echo 'echo "[loaded ~/.profile]"' >> ~/.profile
-echo 'echo "[loaded ~/.bashrc]"'  >> ~/.bashrc
-
-# Login shell (reads profile)
-bash -l -c 'echo done'
-
-# Interactive non-login shell (reads .bashrc)
-bash -i -c 'echo done'
-```
-
-Which marker printed in each case? That's precedence, live.
-
-### Step 3 — Explore environment variables
+### Step 2 — Explore environment variables
 
 ```bash
 printenv | sort | head -30
@@ -185,7 +235,7 @@ bash -c 'echo "child sees: myvar=[$myvar] myexp=[$myexp]"'
 
 Notice the child sees `myexp` but not `myvar`.
 
-### Step 4 — Extend your PATH
+### Step 3 — Extend your PATH
 
 ```bash
 mkdir -p ~/bin
@@ -199,6 +249,22 @@ hello                          # probably: command not found
 export PATH="$HOME/bin:$PATH"
 hello                          # now it runs
 which hello
+```
+
+### Step 4 — Redirect the standard streams
+
+```bash
+# This command succeeds on /etc but errors on /nope — output goes to stdout, the error to stderr
+ls /etc /nope
+
+ls /etc /nope > out.txt          # only normal output is captured; the error STILL hits your screen
+cat out.txt
+
+ls /etc /nope > out.txt 2> err.txt   # split the two streams into separate files
+cat err.txt                          # the "cannot access '/nope'" message landed here
+
+ls /etc /nope > all.txt 2>&1     # merge BOTH streams into one file
+find /etc -name "*.conf" 2>/dev/null | head   # discard errors, keep and pipe the results
 ```
 
 ### Step 5 — Exit codes and chaining
@@ -232,28 +298,28 @@ ll
 mkcd ~/scratch/test && pwd
 ```
 
-### Step 7 — Clean up the markers from Step 2
+---
 
-```bash
-# Remove the two echo lines you appended so your shell isn't noisy
-sed -i '/\[loaded ~\/\.profile\]/d' ~/.profile
-sed -i '/\[loaded ~\/\.bashrc\]/d'  ~/.bashrc
-```
+## Advanced Topics
+
+We kept things to `~/.bashrc` on purpose. These are the next concepts to explore on your own — read the linked resource for each:
+
+- **Login vs. non-login, interactive vs. non-interactive shells** — how a shell is started decides which config files it reads → [`man bash` — INVOCATION](https://man7.org/linux/man-pages/man1/bash.1.html)
+- **Startup file precedence** — the order bash reads `/etc/profile`, `~/.bash_profile`, `~/.profile`, and `~/.bashrc` → [Bash Startup Files — GNU manual](https://www.gnu.org/software/bash/manual/html_node/Bash-Startup-Files.html)
+- **Setting environment variables persistently** — where `PATH` and other exports belong so logins pick them up → [Ubuntu community — EnvironmentVariables](https://help.ubuntu.com/community/EnvironmentVariables)
+- **Customising your prompt (`PS1`) and other special variables** — the full list of predefined bash variables and prompt escapes → [Bash Variables](https://www.gnu.org/software/bash/manual/html_node/Bash-Variables.html) · [Controlling the Prompt](https://www.gnu.org/software/bash/manual/html_node/Controlling-the-Prompt.html)
 
 ---
 
 ## Assignment
 
-In `my-progress/day-05.md`:
-
-1. **Precedence scenario:** You add a `PATH` change to `~/.bashrc`, but when you `vagrant ssh` in fresh it isn't applied — yet it works after you open a new shell inside the session. Explain *why* in terms of login vs. non-login shells, and state where you'd actually put the change so SSH logins pick it up.
-2. **Make it yours:** Add **two** things to `~/.bashrc` that are genuinely useful to *you* and different from the lab's examples: one alias and one function that takes an argument (e.g. a `bak` function that copies a file to `<file>.bak`). Paste the additions and show them working after `source ~/.bashrc`.
+1. **Master the shortcuts:** Work through this [Bash shortcuts & navigation cheatsheet](https://gist.github.com/tuxfight3r/60051ac67c5f0445efee). Practise moving and editing on the command line without arrow keys — jump to line start/end (`Ctrl-a` / `Ctrl-e`), delete a word (`Ctrl-w`), search history (`Ctrl-r`), recall the last argument (`Alt-.`) — until they're muscle memory. Pick the five you'll use most and note what each does.
+2. **Customise your prompt:** Change `PS1` so your prompt shows username, host, and current directory, and make the change permanent so it survives opening a new shell.
 
 ---
 
 ## Further Reading
 
-- `man bash` → the **INVOCATION** section explains startup file order precisely
-- [Bash startup files, explained](https://www.gnu.org/software/bash/manual/html_node/Bash-Startup-Files.html)
 - [The Art of Command Line](https://github.com/jlevy/the-art-of-command-line)
 - `help alias`, `help export`, `help function` — bash built-in help
+- Startup files and their precedence are covered in [Advanced Topics](#advanced-topics) above

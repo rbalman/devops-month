@@ -141,8 +141,6 @@ du -sh ~                  # total size of your home directory
 
 ## Assignment
 
-In `my-progress/day-03.md`:
-
 1. **Hands-on — investigate and control a process:** In one terminal, start a background process you can identify (e.g. `sleep 600 &` or `yes > /dev/null &`). Then, using the commands from today:
    - Find its **PID** two different ways (e.g. `ps aux | grep` and `pgrep`).
    - Show its **CPU and memory** usage from `top` (or `ps`).

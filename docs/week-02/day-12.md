@@ -167,8 +167,6 @@ docker system prune
 
 ## Assignment
 
-In `my-progress/day-12.md`:
-
 1. What is the difference between a Docker image and a container? Use an analogy.
 2. Run an Alpine Linux container interactively (`docker run -it alpine sh`). How does its size compare to Ubuntu? Run `du -sh /` inside each. Why is Alpine preferred for production images?
 3. Run `docker run -d -p 8080:80 nginx`. Then run the same command again. What happens? How does Docker name the second container?

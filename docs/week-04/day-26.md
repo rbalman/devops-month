@@ -278,8 +278,6 @@ sum by (endpoint) (rate(http_requests_total[1m]))
 
 ## Assignment
 
-In `my-progress/day-26.md`:
-
 1. What is the difference between a Counter and a Gauge? Give an example of each from the node-exporter metrics you can see at `http://localhost:9100/metrics`.
 2. What does `rate(http_requests_total[5m])` compute? Why can't you use `http_requests_total` directly to see the current request rate?
 3. Add an `ERROR_COUNT` Counter to the app that increments on any unhandled exception. Write a `/error` endpoint that raises an exception on purpose. Query the metric in Prometheus.

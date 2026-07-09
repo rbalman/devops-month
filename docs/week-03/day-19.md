@@ -280,8 +280,6 @@ docker ps   # should be empty
 
 ## Assignment
 
-In `my-progress/day-19.md`:
-
 1. What is the difference between `terraform plan` and `terraform apply`?
 2. What is the Terraform state file and why is it important? What happens if you delete it?
 3. Create a Terraform config that runs **two** Nginx containers — one on port 8080 and one on port 8081. Use a `count` or two separate resources.

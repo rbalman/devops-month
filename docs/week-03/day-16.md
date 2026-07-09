@@ -182,8 +182,6 @@ ansible all -i inventory.ini -m apt -a "name=nginx state=absent" -b
 
 ## Assignment
 
-In `my-progress/day-16.md`:
-
 1. What does "agentless" mean for Ansible? What does it require on the target machines instead?
 2. What is idempotency? Run `ansible all -m apt -a "name=nginx state=present" -b` twice. What changes in the second run? Why?
 3. Using only ad-hoc commands, perform these tasks on both nodes:

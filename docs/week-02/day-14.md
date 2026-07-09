@@ -278,7 +278,7 @@ Extend the stack in `~/docker-labs/compose-demo`:
 3. Add a **healthcheck** to the `app` service that curls `/health` every 30 seconds
 4. Write a `Makefile` (or shell script) with targets: `up`, `down`, `logs`, `rebuild`
 
-In `my-progress/day-14.md`, answer:
+Answer:
 - What is the difference between `docker compose down` and `docker compose down -v`?
 - What does `depends_on` guarantee? What doesn't it guarantee?
 

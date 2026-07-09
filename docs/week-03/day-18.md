@@ -282,7 +282,7 @@ Create a role `roles/app` that:
 4. Creates a systemd service using a Jinja2 template (`files/app.service.j2`)
 5. Ensures the service is started and enabled
 
-In `my-progress/day-18.md`, answer:
+Answer:
 - What is the difference between `vars/main.yml` and `defaults/main.yml` in a role?
 - What is Jinja2? Give one example of a template expression and what it produces.
 - Why are roles better than a single large playbook?

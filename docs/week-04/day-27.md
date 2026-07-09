@@ -336,8 +336,6 @@ rate({container="myapp"}[5m])
 
 ## Assignment
 
-In `my-progress/day-27.md`:
-
 1. What is the difference between Loki and Elasticsearch for log storage? What trade-offs does each make?
 2. What are Loki labels? Why does Loki use labels instead of full-text indexing?
 3. Modify the app to log a different message for `/health` vs `/` endpoints. Query Loki to show only health check logs.

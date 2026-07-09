@@ -277,7 +277,7 @@ Write a playbook `~/ansible-labs/database.yml` that:
 4. Creates a directory `/opt/myapp/data` with `deploy` as owner
 5. Uses a handler to restart PostgreSQL only when a config file changes
 
-In `my-progress/day-17.md`, answer:
+Answer:
 - What is the difference between a `task` and a `handler`?
 - What does `become: true` do and when is it needed?
 - Why is `cache_valid_time` useful in the `apt` module?

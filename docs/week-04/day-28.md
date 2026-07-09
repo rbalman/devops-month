@@ -220,8 +220,6 @@ EOF
 
 ## Assignment
 
-In `my-progress/day-28.md`:
-
 1. Build a complete dashboard with at least 5 panels covering both metrics (Prometheus) and logs (Loki). Export the JSON and commit it to your repo.
 2. Set up a Discord alert that fires when memory usage goes above 80%. Test it by triggering the condition.
 3. What is the `for: 2m` duration in an alert rule? Why is it important?

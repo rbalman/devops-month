@@ -301,8 +301,6 @@ curl http://$EC2_IP/health
 
 ## Assignment
 
-In `my-progress/day-25.md`:
-
 1. What would happen in the pipeline if the `test` job fails? Would `build-and-push` run?
 2. What is the `if: github.ref == 'refs/heads/main'` condition doing? Why is this important?
 3. Add a Slack or Discord notification step at the end of the `deploy` job that sends a message when deployment succeeds.

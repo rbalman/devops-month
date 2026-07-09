@@ -246,8 +246,6 @@ docker pull <your-dockerhub-username>/myapp:2.0
 
 ## Assignment
 
-In `my-progress/day-13.md`:
-
 1. What is a Docker layer? Why does layer order matter for build performance?
 2. What is the difference between `CMD` and `ENTRYPOINT`? When would you use each?
 3. Extend the `myapp` Dockerfile to accept an `APP_ENV` environment variable (development/production) and print it in the JSON response. Build and test it.

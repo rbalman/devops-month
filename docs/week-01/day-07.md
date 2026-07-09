@@ -305,12 +305,12 @@ crontab -e                 # now delete that line and save to clean up
 
 ## Assignment
 
-Create these in `my-progress/day-07/` and commit the scripts.
+Create these scripts and commit them.
 
 1. **`numcheck.sh`** — takes a number as `$1`. If no argument is given, print a usage message and `exit 1`. Otherwise use `if`/`elif`/`else` to say whether it's **positive, negative, or zero**, then use a loop to print the numbers from 1 up to that number.
 2. **`greet-all.sh`** — defines a **function** `greet` that prints `Hello, <name>!`, then loops over **all arguments** and greets each one. If no arguments are given, greet `world`.
 
-*(Optional): schedule one of your scripts with cron to run every 5 minutes, confirm it ran via its log file, then remove the entry. Paste your `crontab -l` into `my-progress/day-07.md`.*
+*(Optional): schedule one of your scripts with cron to run every 5 minutes, confirm it ran via its log file, then remove the entry. Paste your `crontab -l` output.*
 
 ---
 

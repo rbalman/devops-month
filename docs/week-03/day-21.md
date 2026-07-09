@@ -267,7 +267,7 @@ make all
 
 This week's assignment is the mini project itself. Push everything to your fork:
 
-Then answer in `my-progress/day-21.md`:
+Then answer:
 
 1. What was the hardest part of this mini project? What did you debug?
 2. How would this project change if you used AWS EC2 instead of a local Docker container?

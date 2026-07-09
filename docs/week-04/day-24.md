@@ -289,8 +289,6 @@ git push origin main
 
 ## Assignment
 
-In `my-progress/day-24.md`:
-
 1. What is the difference between CI and CD?
 2. What does `needs: lint-and-test` in the `security-scan` job do?
 3. Add a new function `multiply(a, b)` to `app.py` and write a test for it. Push to a branch, open a pull request, and watch the CI run. Paste the link to the workflow run.
