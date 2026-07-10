@@ -267,7 +267,7 @@ Three short scripts, each drilling one core skill — the kind of "gather and re
 
 1. **`sysinfo.sh` — the first-login snapshot** *(command substitution + quoting)*. Print a clean report of who and where you are: hostname, the user running the script, kernel version (`uname -r`), uptime (`uptime -p`), and the current date & time. Format it with `printf`, **quote every variable**, and start the file with a comment header.
 
-2. **`meminfo.sh` — memory used %** *(arithmetic)*. From `free -m`, read total and used RAM and compute the **used percentage yourself** with `$(( ))`. *Hint:* `free -m | awk 'NR==2 {print $2, $3}'` gives you total and used to capture with command substitution.
+2. **`meminfo.sh` — memory used %** *(arithmetic)*. From `free -m`, read total and used RAM and compute the **used percentage yourself** with `$(( ))`. *Hints:* `free -m | awk 'NR==2 {print $2, $3}'` gives you total and used to capture with command substitution; and since shells do **integer math**, `used * 100 / total` (multiply first) — `used / total * 100` would give `0`.
 
 3. **`diskusage.sh` — inspect any directory** *(parameter defaults + exit codes)*. Take a directory as `$1`, defaulting to `$HOME` (`${1:-$HOME}`). Print its total size (`du -sh`) and the disk space used on `/` (`df -h /`). If `du` fails on the path, print an error to **stderr** and `exit 1` (use Day 5's `||`).
 
