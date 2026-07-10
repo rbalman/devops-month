@@ -87,6 +87,47 @@ for i in {1..5}; do echo "num $i"; done     # a range: 1 2 3 4 5
 for f in *.txt; do echo "file $f"; done     # files, via a glob
 ```
 
+**Number ranges with brace expansion.** `{1..5}` is *brace expansion* — the shell builds the whole list *before* the loop runs. It does far more than count up:
+
+```bash
+echo {1..5}          # 1 2 3 4 5
+echo {5..1}          # 5 4 3 2 1        (counts down)
+echo {0..20..5}      # 0 5 10 15 20     (step by 5)
+echo {01..05}        # 01 02 03 04 05   (zero-padded)
+echo {a..e}          # a b c d e        (letters work too)
+echo file{1..3}.txt  # file1.txt file2.txt file3.txt
+```
+
+That last form is a real time-saver — batch-create files and directories in one line:
+
+```bash
+mkdir -p site/{css,js,img}   # three directories at once
+touch log{1..3}.txt          # log1.txt log2.txt log3.txt
+```
+
+!!! warning "Brace expansion can't see variables"
+    Braces expand *before* `$variables` do, so `{1..$n}` stays literal and the loop won't count. For a range up to a **variable**, use `seq` or a C-style loop instead:
+    ```bash
+    n=5
+    for i in $(seq 1 "$n");   do echo "$i"; done   # seq builds the list
+    for (( i=1; i<=n; i++ ));  do echo "$i"; done   # C-style counter
+    ```
+
+**More on `seq`.** Where brace expansion is fixed at parse time, `seq` is a real program — so it happily takes **variables** and even **decimals**, and can format its output. It prints one number per line by default, which is exactly what a `for` or `while read` loop wants:
+
+```bash
+seq 5           # 1 2 3 4 5          (just an end — starts at 1)
+seq 2 6         # 2 3 4 5 6          (start … end)
+seq 1 2 10      # 1 3 5 7 9          (start STEP end — every 2nd)
+seq 10 -2 0     # 10 8 6 4 2 0       (count down with a negative step)
+seq 0 0.5 2     # 0 0.5 1 1.5 2      (decimals — braces and $(( )) can't)
+seq -w 8 11     # 08 09 10 11        (-w = equal width, zero-padded)
+seq -s, 1 5     # 1,2,3,4,5          (-s sets the separator)
+```
+
+!!! tip "seq vs brace expansion"
+    Use **`{1..5}`** for quick, literal ranges you type by hand; reach for **`seq`** whenever the start, step, or end comes from a **variable** or needs **decimals**.
+
 A `while` loop runs as long as its test holds:
 
 ```bash
