@@ -1,192 +1,222 @@
-# Day 09 · Networking II — SSH, DNS & TLS
+# Day 09 · Networking II — DNS & Mail
+
+> Yesterday you moved packets between *numbers*. But nobody types `142.250.x.x` into a browser — we use **names**. Today you learn the system that turns `example.com` into an address, how to interrogate it with `dig`, and how the same system quietly runs the world's **email**. You'll even speak the mail protocol by hand.
 
 ## Learning Objectives
 
-- Use SSH to connect to remote servers and manage keys
-- Understand how DNS resolves names to IPs
-- Know what TLS does and how to inspect certificates
+- Explain how a name resolves to an IP, step by step, from your machine outward
+- Query DNS directly with `dig` and read the answer
+- Recognize the common **record types** and what each is for
+- Find where your machine's own resolver is configured (`/etc/hosts`, `resolv.conf`, `systemd-resolved`)
+- Understand the DNS records that make **email** work — MX, SPF, DKIM, DMARC
+- Watch an SMTP conversation and understand why self-hosting mail is hard
 
 ---
 
 ## Theory · ~20 min
 
-### SSH — Secure Shell
+### 1. DNS is the internet's phone book
 
-SSH lets you securely log into a remote machine over an encrypted connection. It replaced Telnet, which sent everything in plaintext.
-
-**Key-based authentication** is the standard. Instead of a password, you generate a key pair:
-
-- **Private key** (`~/.ssh/id_ed25519`) — stays on your machine, never shared
-- **Public key** (`~/.ssh/id_ed25519.pub`) — placed on the server in `~/.ssh/authorized_keys`
-
-When you connect, the server challenges your client, the client proves it holds the private key, and you're in — no password needed.
-
-```bash
-ssh user@hostname           # connect
-ssh -i ~/.ssh/mykey user@host   # use specific key
-ssh -p 2222 user@host       # non-default port
-ssh -L 8080:localhost:80 user@host  # local port forwarding
-```
-
-### SSH Config File
-
-`~/.ssh/config` lets you define shortcuts:
+**DNS** (Domain Name System) maps human names to machine addresses. When you ask for `example.com`, the answer isn't stored in one place — it's found by walking a **hierarchy**, right to left:
 
 ```
-Host myserver
-    HostName 203.0.113.10
-    User ubuntu
-    IdentityFile ~/.ssh/my_key
-    Port 22
+              www.example.com.
+                            └─ "." the root
+                     └──────── ".com"  Top-Level Domain (TLD)
+             └──────────────── "example.com"  the domain (its owner runs the nameservers)
+         └──────────────────── "www"  a host/record inside that domain
 ```
 
-Then just: `ssh myserver`
+### 2. How a lookup actually resolves
 
-### DNS — Domain Name System
-
-DNS is the internet's phone book. It translates human-readable names (`google.com`) to IP addresses (`142.250.80.46`).
-
-**Resolution flow:**
+Your machine rarely knows the answer — it asks a **resolver**, which walks the hierarchy for you and caches the result:
 
 ```
-Browser asks: "What is the IP for google.com?"
-  → OS checks /etc/hosts
-  → OS asks configured DNS resolver (e.g. 8.8.8.8)
-    → Resolver checks its cache
-    → Resolver asks root DNS servers
-    → Root refers to .com nameservers
-    → .com nameservers refer to google.com nameservers
-    → google.com nameserver returns: 142.250.80.46
-Answer returned to browser
+Your app asks: "IP for www.example.com?"
+  1. OS checks /etc/hosts           (a local override file)
+  2. OS asks its configured resolver (e.g. systemd-resolved → 8.8.8.8)
+  3. Resolver asks a ROOT server     → "ask the .com servers"
+  4. Resolver asks a .COM server     → "ask example.com's nameservers"
+  5. Resolver asks example.com's NS  → "it's 93.184.x.x"
+  6. Resolver caches it (for the record's TTL) and answers your app
 ```
 
-**Key DNS record types:**
+That whole trip happens in milliseconds, and the **cache** means step 3–5 are skipped next time.
 
-| Record | Purpose | Example |
+!!! note "TTL — why DNS changes aren't instant"
+    Every record carries a **TTL** (time-to-live) in seconds — how long resolvers may cache it. Change a record with a 3600s TTL and some of the world keeps seeing the old value for up to an hour. Before a migration, you *lower the TTL* in advance so the switch propagates fast.
+
+### 3. The record types you'll meet
+
+A DNS zone is a set of **records**. The ones that matter day-to-day:
+
+| Record | Maps | Example / use |
 |---|---|---|
-| `A` | Name → IPv4 address | `google.com → 142.250.80.46` |
-| `AAAA` | Name → IPv6 address | |
-| `CNAME` | Alias to another name | `www → myapp.example.com` |
-| `MX` | Mail server for domain | |
-| `TXT` | Arbitrary text (used for SPF, verification) | |
-| `NS` | Nameservers for a domain | |
+| **A** | name → IPv4 | `example.com → 93.184.215.14` |
+| **AAAA** | name → IPv6 | `example.com → 2606:2800:...` |
+| **CNAME** | name → another **name** | `www → example.com` (an alias) |
+| **MX** | domain → mail server(s) | where email for `@example.com` goes |
+| **TXT** | name → free text | SPF, DKIM, domain verification |
+| **NS** | domain → its nameservers | who is authoritative for the zone |
+| **SOA** | — | the zone's "start of authority" metadata |
+| **PTR** | IP → name | **reverse** DNS (used by mail servers) |
 
-### TLS — Transport Layer Security
+!!! tip "A record vs CNAME"
+    An **A** record points at an *address*; a **CNAME** points at another *name* (which is then resolved). Use A for the apex (`example.com`), CNAME for subdomains that should follow another host (`www`, `app` → a load balancer's name).
 
-TLS (formerly SSL) encrypts traffic between client and server. When you see `https://`, TLS is in use.
+### 4. Where *your* machine's DNS is configured
 
-How it works (simplified):
-1. Client connects, server presents its **certificate**
-2. Certificate is signed by a trusted **Certificate Authority (CA)**
-3. Client verifies the signature chain — is this cert trusted?
-4. Both sides negotiate an **encryption key** (TLS handshake)
-5. All subsequent data is encrypted
+Three places decide how names resolve on your box:
 
-A certificate contains: domain name, expiry date, public key, CA signature.
+- **`/etc/hosts`** — a static override, checked first. Great for local testing (point `myapp.local` at `127.0.0.1`).
+- **`/etc/resolv.conf`** — lists the resolver(s) to ask. On Ubuntu 24.04 this is managed by **systemd-resolved** and usually points at the stub `127.0.0.53`.
+- **`resolvectl`** — the tool to inspect what systemd-resolved is actually doing.
+
+### 5. DNS also runs your email
+
+Here's the part people miss: **email delivery is a DNS problem.** When a server wants to email `you@example.com`, it asks DNS for the domain's **MX** record to find the mail server. Three more DNS records decide whether that mail is *trusted* — this is how the internet fights spoofing:
+
+| Record | Type | Answers the question |
+|---|---|---|
+| **MX** | MX | *Which server receives mail for this domain?* |
+| **SPF** | TXT | *Which servers are allowed to send as this domain?* |
+| **DKIM** | TXT | *Is this message cryptographically signed by the domain?* |
+| **DMARC** | TXT | *What should happen to mail that fails SPF/DKIM?* |
+
+Get these wrong and your mail silently lands in spam — or vanishes.
+
+!!! danger "Why we don't self-host a real mailbox in this course"
+    Standing up production email (Postfix + Dovecot) is famously one of the hardest jobs in ops: your server's IP needs a clean reputation, correct **PTR** (reverse DNS), and perfect SPF/DKIM/DMARC, or the big providers drop your mail on the floor. It's a rabbit hole that would eat the whole week. Today we learn the **DNS + protocol layer** — which is what you actually configure — and leave running a mailbox to specialists (or a managed provider like SES/Postmark).
 
 ---
 
 ## Lab · ~50 min
 
-### Step 1 — Generate SSH keys
+Work **inside your Vagrant VM**. Install the DNS tools:
 
 ```bash
-# Generate an Ed25519 key pair (preferred over RSA)
-ssh-keygen -t ed25519 -C "devops-month" -f ~/.ssh/devops_month
-
-# View the generated files
-ls -la ~/.ssh/
-cat ~/.ssh/devops_month.pub   # public key — safe to share
-
-# Set correct permissions (SSH is strict about this)
-chmod 700 ~/.ssh
-chmod 600 ~/.ssh/devops_month
-chmod 644 ~/.ssh/devops_month.pub
+sudo apt update && sudo apt install -y bind9-dnsutils
 ```
 
-### Step 2 — SSH to localhost (self-test)
+### Step 1 — Your first `dig`
 
 ```bash
-# Copy the public key to your own authorized_keys
-cat ~/.ssh/devops_month.pub >> ~/.ssh/authorized_keys
-chmod 600 ~/.ssh/authorized_keys
-
-# Confirm SSH is running
-sudo systemctl status ssh   # or sshd
-
-# SSH to localhost using your new key
-ssh -i ~/.ssh/devops_month localhost
-
-# If it works, exit
-exit
+dig example.com                 # the full response — read the ANSWER SECTION
+dig +short example.com          # just the address
+dig example.com A               # only A (IPv4) records
+dig example.com AAAA            # only AAAA (IPv6)
 ```
 
-### Step 3 — Create SSH config
+In the full output, note the **ANSWER SECTION** and the number beside the record — that's the **TTL** counting down.
+
+### Step 2 — Explore the record types
 
 ```bash
-cat > ~/.ssh/config << 'EOF'
-Host localhost-test
-    HostName 127.0.0.1
-    User YOUR_USERNAME
-    IdentityFile ~/.ssh/devops_month
-    StrictHostKeyChecking no
-EOF
-
-chmod 600 ~/.ssh/config
-
-# Now connect using the alias
-ssh localhost-test
-exit
+dig +short google.com MX        # mail servers (note the priority numbers)
+dig +short google.com NS        # authoritative nameservers
+dig +short google.com TXT       # text records — you'll see an SPF entry here
+dig example.com SOA             # zone authority metadata
 ```
 
-### Step 4 — DNS lookups
+### Step 3 — Watch the hierarchy resolve
+
+`+trace` walks the tree yourself — root → TLD → authoritative — instead of asking your cached resolver:
 
 ```bash
-# Basic lookup
-dig google.com              # full DNS response
-dig google.com A            # only A records
-dig google.com MX           # mail records
-dig +short google.com       # just the IP
-
-# Reverse lookup (IP → name)
-dig -x 8.8.8.8
-
-# Query a specific DNS server
-dig @1.1.1.1 google.com
-
-# Check your system's DNS configuration
-cat /etc/resolv.conf
-cat /etc/hosts
+dig +trace www.wikipedia.org
 ```
 
-### Step 5 — Inspect TLS certificates
+Read it top to bottom: the **root** servers refer you to **`.org`**, which refers you to Wikipedia's nameservers, which give the final answer. That's steps 3–5 from the theory, made visible.
+
+### Step 4 — Query a specific resolver, and reverse lookups
 
 ```bash
-# View certificate for a website
-openssl s_client -connect google.com:443 -servername google.com </dev/null 2>/dev/null \
-    | openssl x509 -noout -text | head -40
+dig @1.1.1.1 example.com        # ask Cloudflare's resolver directly
+dig @8.8.8.8 example.com        # ask Google's — compare the TTLs (caching!)
 
-# Just get expiry and subject
-echo | openssl s_client -connect github.com:443 2>/dev/null \
-    | openssl x509 -noout -dates -subject
-
-# Test with curl
-curl -v https://google.com 2>&1 | grep -E "subject|issuer|expire"
+dig -x 8.8.8.8                  # reverse: IP → name (PTR record)
 ```
+
+### Step 5 — Where your own machine resolves names
+
+```bash
+cat /etc/hosts                  # static overrides, checked first
+cat /etc/resolv.conf            # note it points at 127.0.0.53 — the systemd-resolved stub
+resolvectl status               # the real upstream resolvers your VM uses
+```
+
+Now prove `/etc/hosts` wins. Add a local override and test it:
+
+```bash
+echo "127.0.0.1 myapp.local" | sudo tee -a /etc/hosts
+dig +short myapp.local          # dig ignores /etc/hosts...
+getent hosts myapp.local        # ...but the OS resolver (what apps use) honors it → 127.0.0.1
+ping -c1 myapp.local            # resolves to localhost
+```
+
+!!! note "dig vs the OS resolver"
+    `dig` talks straight to DNS servers, so it **skips** `/etc/hosts`. Real programs use the OS resolver (`getent`, `ping`, `curl`), which checks `/etc/hosts` first. That difference trips up everyone once — now it won't trip you.
+
+### Step 6 — Inspect the mail records of a real domain
+
+```bash
+dig +short google.com MX                    # who receives Google's mail
+dig +short google.com TXT | grep spf        # SPF: allowed senders
+dig +short _dmarc.google.com TXT            # DMARC policy
+```
+
+The DMARC record lives at the special `_dmarc.<domain>` name — read its `p=` value (`none`, `quarantine`, or `reject`): that's the domain's instruction for mail that fails authentication.
+
+### Step 7 — Speak SMTP by hand (the mail protocol is just text)
+
+Just like HTTP yesterday, SMTP is a plaintext conversation — so we poke at it with the same `nc`. First find a mail server, then talk to it:
+
+```bash
+dig +short gmail.com MX          # pick the hostname with the lowest priority number
+nc <that-mail-server> 25         # e.g. nc gmail-smtp-in.l.google.com 25
+```
+
+If it connects, type the opening of an SMTP conversation and watch the server reply to each line:
+
+```
+HELO devops-month.local
+MAIL FROM:<you@example.com>
+RCPT TO:<someone@gmail.com>
+```
+
+Each command gets a numeric reply (`250 OK`, etc.). Type `QUIT` to end. **This is exactly what every mail server does** — you're just doing it by hand.
+
+!!! warning "Port 25 is often blocked"
+    Many home ISPs and cloud providers block **outbound port 25** to fight spam, so the `nc ... 25` may hang or refuse. That's not a bug in your setup — it's the same reason self-hosting mail is hard. If it's blocked, you've still learned the conversation; move on.
+
+Clean up the test override from Step 5 when you're done:
+
+```bash
+sudo sed -i '/myapp.local/d' /etc/hosts
+```
+
+---
+
+## Advanced Topics
+
+- **Run your own resolver** — `dnsmasq` or `unbound` for local caching and split-horizon DNS → [Ubuntu — dnsmasq](https://help.ubuntu.com/community/Dnsmasq)
+- **DNS over HTTPS/TLS** — encrypting the lookups themselves so the network can't snoop or tamper → [Cloudflare — DNS over HTTPS](https://developers.cloudflare.com/1.1.1.1/encryption/dns-over-https/)
+- **The full email trust stack** — how SPF, DKIM, and DMARC actually validate a message → [Cloudflare — email security](https://www.cloudflare.com/learning/email-security/dmarc-dkim-spf/)
+- **Registering & delegating a domain** — glue records, NS delegation, and how your `.com.np` becomes authoritative → [How DNS delegation works](https://www.cloudflare.com/learning/dns/glossary/what-is-dns/)
 
 ---
 
 ## Assignment
 
-1. Add your `devops_month` public key to your GitHub account (Settings → SSH keys). Test with `ssh -T git@github.com`. Paste the response.
-2. Run `dig github.com`. What is the IP returned? What TTL does the record have, and what does TTL mean?
-3. What DNS server is your machine currently using? Where is this configured?
-4. Check the TLS certificate for `github.com`. When does it expire? Who issued it?
+1. **Investigate a domain end-to-end.** Choose a domain you use daily. With `dig`, gather: its A record and TTL, its nameservers (NS), its mail servers (MX with priorities), and its DMARC policy (`_dmarc.<domain>` TXT). Present it as a short table, and in two sentences explain what the DMARC `p=` value means for someone trying to spoof that domain.
+
+2. **Prepare your Go-Live domain.** You registered a `.com.np` domain on Day 01. Run `dig NS <yourdomain>.com.np` and `dig <yourdomain>.com.np` and record what exists today. Then write down the **exact A record** you *will* create in Week 4 to point it at your public server — name, type, value (use a placeholder IP like `203.0.113.10`), and a TTL, with one line explaining why you'd pick a *low* TTL right before going live.
 
 ---
 
 ## Further Reading
 
-- [How SSH works — illustrated](https://www.cloudflare.com/learning/access-management/what-is-ssh/)
-- [DNS explained — Cloudflare](https://www.cloudflare.com/learning/dns/what-is-dns/)
-- `man ssh_config`, `man dig`, `man openssl`
+- [How DNS works — a friendly comic](https://howdns.works/) — the resolution walk, illustrated
+- [Cloudflare Learning — What is DNS?](https://www.cloudflare.com/learning/dns/what-is-dns/)
+- [DNSViz](https://dnsviz.net/) — paste a domain and see its whole DNS/DNSSEC tree visualized
+- `man dig`, `man resolved.conf`, `man hosts`
