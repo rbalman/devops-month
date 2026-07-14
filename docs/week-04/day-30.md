@@ -1,4 +1,4 @@
-# Day 30 · Job Preparation & What Comes Next
+# Day 9 · Job Preparation & What Comes Next
 
 ## Learning Objectives
 

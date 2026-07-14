@@ -1,4 +1,4 @@
-# Day 26 · Monitoring I — Prometheus & Metrics
+# Day 5 · Monitoring I — Prometheus & Metrics
 
 ## Learning Objectives
 
@@ -158,7 +158,7 @@ rate(prometheus_tsdb_head_samples_appended_total[1m])
 
 ### Step 3 — Instrument your application
 
-Add Prometheus metrics to the Flask app from Day 25:
+Add Prometheus metrics to the Flask app from Day 4:
 
 ```bash
 mkdir -p ~/monitoring-labs/app

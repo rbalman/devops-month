@@ -1,4 +1,4 @@
-# Day 02 · The Filesystem — Navigation, Files & Text
+# Day 2 · The Filesystem — Navigation, Files & Text
 
 ## Learning Objectives
 
@@ -48,7 +48,7 @@ The two you'll open most: **`/etc`** (a service's config) and **`/var/log`** (it
 
 ## Lab · ~50 min
 
-Do everything below **inside your Vagrant VM** from Day 01 (`vagrant ssh`).
+Do everything below **inside your Vagrant VM** from Day 1 (`vagrant ssh`).
 
 ### Step 1 — Navigate the filesystem
 

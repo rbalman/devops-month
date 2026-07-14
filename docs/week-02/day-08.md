@@ -1,4 +1,4 @@
-# Day 08 · Networking I — Addressing & the Tools to See It
+# Day 1 · Networking I — Addressing & the Tools to See It
 
 > Week 2 is **Operation: Go Live** — by Sunday you'll have a containerized app running behind Nginx, over HTTPS, on your own domain. Everything starts here, with the network. Today you learn how machines are *addressed* and how data *moves* — then you'll watch it move with your own eyes: chat over a raw socket, capture a live TCP handshake, and type an HTTP request by hand.
 
@@ -250,7 +250,7 @@ The server at `example.com` replies with the raw HTTP headers and HTML a browser
     `nc` handles one connection then exits — wrap the web-server line in `while true; do …; done` to keep it up.
 
 !!! warning "`nc` sends everything in plaintext"
-    Whatever you type over `nc` — secrets included — crosses the network **unencrypted**, readable by anyone watching. Fine for *learning* protocols by hand, but it's exactly why you never log into a real server this way. On **Day 10** you'll capture a plaintext password off the wire and watch SSH fix it.
+    Whatever you type over `nc` — secrets included — crosses the network **unencrypted**, readable by anyone watching (you saw a live packet in Step 7). Fine for *learning* protocols by hand, but it's exactly why you never log into a real server this way — and why **Day 3** replaces it with encrypted **SSH**.
 
 !!! note "You'll still see `telnet` in the wild"
     Older tutorials hand-type HTTP or SMTP with the classic `telnet` client instead of `nc` — same idea, and just as plaintext. Recognize it, but reach for `nc` (which also *listens*, does UDP, and transfers files):

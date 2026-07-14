@@ -1,4 +1,4 @@
-# Day 06 · Shell Scripting I — Fundamentals
+# Day 6 · Shell Scripting I — Fundamentals
 
 > Days 6–7 are your gentle on-ramp to **programming with the shell** — no prior coding needed. **Today (the first half)** is the toolkit every script is built from: writing and running a file, printing, variables, quoting, input, math, and reporting success. **Tomorrow (the second half)** teaches scripts to make decisions, repeat work, and organize into functions. Each idea builds on the last.
 

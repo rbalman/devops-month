@@ -1,4 +1,4 @@
-# Day 04 · Users, Groups & Permissions
+# Day 4 · Users, Groups & Permissions
 
 ## Learning Objectives
 

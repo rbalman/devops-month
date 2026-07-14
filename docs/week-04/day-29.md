@@ -1,4 +1,4 @@
-# Day 29 · Final Project — End-to-End DevOps Pipeline
+# Day 8 · Final Project — End-to-End DevOps Pipeline
 
 ## Learning Objectives
 

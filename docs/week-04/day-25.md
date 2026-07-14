@@ -1,4 +1,4 @@
-# Day 25 · CI/CD II — Build, Push & Deploy to EC2
+# Day 4 · CI/CD II — Build, Push & Deploy to EC2
 
 ## Learning Objectives
 
@@ -146,7 +146,7 @@ In your GitHub repo, go to **Settings → Secrets → Actions** and add:
 
 - `DOCKER_USERNAME` — your Docker Hub username
 - `DOCKER_PASSWORD` — Docker Hub access token (Docker Hub → Account Settings → Security → New Access Token)
-- `EC2_HOST` — the public IP of your EC2 instance from Day 22
+- `EC2_HOST` — the public IP of your EC2 instance from Day 1
 - `EC2_SSH_KEY` — paste the contents of `~/.ssh/devops-month-ec2.pem`
 - `EC2_USER` — `ubuntu`
 

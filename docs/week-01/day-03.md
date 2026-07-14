@@ -1,4 +1,4 @@
-# Day 03 · Process & Disk Management
+# Day 3 · Process & Disk Management
 
 ## Learning Objectives
 

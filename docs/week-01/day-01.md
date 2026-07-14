@@ -1,4 +1,4 @@
-# Day 01 · DevOps Introduction & Environment Setup
+# Day 1 · DevOps Introduction & Environment Setup
 
 !!! abstract "Slides"
     📊 [Open the intro slide deck](../slides/day-01.html){target=_blank} — course & DevOps introduction: history, culture, and what a DevOps engineer does.

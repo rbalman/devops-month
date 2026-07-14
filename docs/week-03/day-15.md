@@ -1,4 +1,4 @@
-# Day 15 · Vagrant — Local VM Provisioning
+# Day 1 · Vagrant — Local VM Provisioning
 
 ## Learning Objectives
 
@@ -61,7 +61,7 @@ end
 ### Step 1 — Install Vagrant
 
 ```bash
-# Install VirtualBox (if not done on Day 01)
+# Install VirtualBox (if not done in Week 1 (Day 1))
 sudo apt install -y virtualbox
 
 # Install Vagrant

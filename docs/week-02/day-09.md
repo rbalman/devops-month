@@ -1,4 +1,4 @@
-# Day 09 · Networking II — DNS & Mail
+# Day 2 · Networking II — DNS & Mail
 
 > Yesterday you moved packets between *numbers*. But nobody types `142.250.x.x` into a browser — we use **names**. Today you learn the system that turns `example.com` into an address, how to interrogate it with `dig`, and how the same system quietly runs the world's **email** — which you'll prove by standing up a real mail server and routing it with your own DNS records.
 
@@ -197,7 +197,7 @@ The DMARC record lives at the special `_dmarc.<domain>` name — read its `p=` v
 This is where the theory pays off — run an actual mail server, point DNS at it (**A** + **MX**), then send a real email between two accounts and watch it travel the full path: **DNS → MX → SMTP → IMAP**.
 
 !!! note "This demo runs on a public cloud VM, not Vagrant"
-    Mail needs a public IP, a real domain, and open ports — a local VM can't offer those. Use a cloud VM with a public IP (you'll provision **EC2** properly in Week 4; here we just hand you the commands), and don't worry that **Docker** is only taught on Days 12–14 — copy-paste for now. Examples use `fundevops.com`; substitute your own domain.
+    Mail needs a public IP, a real domain, and open ports — a local VM can't offer those. Use a cloud VM with a public IP (you'll provision **EC2** properly in Week 4; here we just hand you the commands), and don't worry that **Docker** is only taught on Days 5–7 — copy-paste for now. Examples use `fundevops.com`; substitute your own domain.
 
 **7.1 — Open the ports.** In the VM's firewall / security group, allow inbound TCP `22` (SSH), `3025` (SMTP), `3143` (IMAP), `8080` (GreenMail API).
 
@@ -287,13 +287,13 @@ With verbose on you'll watch the SMTP `RCPT TO:<receiver@fundevops.com>` land; h
 - **Registering & delegating a domain** — glue records, NS delegation, and how your `.com.np` becomes authoritative → [How DNS delegation works](https://www.cloudflare.com/learning/dns/glossary/what-is-dns/)
 - **DNSSEC** — cryptographically signing a zone so resolvers can detect forged or cache-poisoned answers → [Cloudflare — how DNSSEC works](https://www.cloudflare.com/learning/dns/dnssec/how-dnssec-works/)
 - **The apex-`CNAME` problem** — why you can't `CNAME` a root domain (`example.com`), and how providers fake it with ALIAS/ANAME/CNAME-flattening (you'll meet this pointing your domain at Go-Live) → [Cloudflare — CNAME flattening](https://www.cloudflare.com/learning/dns/glossary/dns-cname-flattening/)
-- **DNS-based load balancing** — round-robin, weighted, and geo-routed records that spread traffic *before* it ever reaches Nginx (Day 11) → [Cloudflare — DNS load balancing](https://www.cloudflare.com/learning/performance/what-is-dns-load-balancing/)
+- **DNS-based load balancing** — round-robin, weighted, and geo-routed records that spread traffic *before* it ever reaches Nginx (Day 4) → [Cloudflare — DNS load balancing](https://www.cloudflare.com/learning/performance/what-is-dns-load-balancing/)
 
 ---
 
 ## Assignment
 
-1. **Map your own domain.** Use the domain *you* registered on Day 01. It already has authoritative nameservers, even before you add any records:
+1. **Map your own domain.** Use the domain *you* registered in Week 1 (Day 1). It already has authoritative nameservers, even before you add any records:
     ```bash
     dig NS <yourdomain>                   # your domain's nameservers (they exist today)
     dig <yourdomain> +trace | tail -15    # watch the hierarchy delegate down to them
@@ -302,7 +302,7 @@ With verbose on you'll watch the SMTP `RCPT TO:<receiver@fundevops.com>` land; h
 
 2. **Run your own mail server — locally, in a few commands.** No domain or cloud needed: everything stays inside your Vagrant VM, using `test.local` as the domain.
     ```bash
-    curl -fsSL https://get.docker.com | sudo sh     # Docker (previewed now; covered fully on Day 12)
+    curl -fsSL https://get.docker.com | sudo sh     # Docker (previewed now; covered fully on Day 5)
     sudo docker run -d --name gm -p 3025:3025 -p 3143:3143 \
       -e GREENMAIL_OPTS="-Dgreenmail.setup.test.all -Dgreenmail.auth.disabled -Dgreenmail.verbose" \
       greenmail/standalone:latest

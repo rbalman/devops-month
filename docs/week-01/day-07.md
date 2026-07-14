@@ -1,4 +1,4 @@
-# Day 07 · Shell Scripting II — Logic, Loops & Reuse
+# Day 7 · Shell Scripting II — Logic, Loops & Reuse
 
 > The second half. Yesterday's scripts ran straight through, top to bottom. Today they learn to **think**: choose between actions, repeat work, take arguments, and organize into reusable functions. We finish with how to **debug** a script and a taste of scheduling with **cron**.
 

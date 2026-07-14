@@ -1,4 +1,4 @@
-# Day 19 · Terraform I — Providers, Resources & Plan/Apply
+# Day 5 · Terraform I — Providers, Resources & Plan/Apply
 
 ## Learning Objectives
 
@@ -66,7 +66,7 @@ resource "aws_instance" "web" {
 
 ## Lab · ~50 min
 
-> For this lab we'll use the **Docker provider** locally (no AWS account needed yet). AWS comes on Day 22.
+> For this lab we'll use the **Docker provider** locally (no AWS account needed yet). AWS comes in Week 4 (Day 1).
 
 ### Step 1 — Install Terraform
 

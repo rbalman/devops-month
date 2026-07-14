@@ -1,4 +1,4 @@
-# Day 28 · Grafana Dashboards & Alerting
+# Day 7 · Grafana Dashboards & Alerting
 
 ## Learning Objectives
 

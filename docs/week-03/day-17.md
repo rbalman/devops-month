@@ -1,4 +1,4 @@
-# Day 17 · Ansible II — Playbooks
+# Day 3 · Ansible II — Playbooks
 
 ## Learning Objectives
 

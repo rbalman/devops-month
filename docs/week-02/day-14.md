@@ -1,4 +1,4 @@
-# Day 14 · Docker Compose — Multi-Container Apps
+# Day 7 · Docker Compose — Multi-Container Apps
 
 ## Learning Objectives
 

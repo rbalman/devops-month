@@ -1,4 +1,4 @@
-# Day 11 · Networking IV — Nginx, Reverse Proxy & TLS
+# Day 4 · Networking IV — Nginx, Reverse Proxy & TLS
 
 > Four days of networking come together today. You can address machines, resolve names, and reach them securely — now you'll run the thing that *serves* them. **Nginx** is the front door of most of the internet: it hands out static files, forwards requests to your app, spreads load across many app copies, and wraps it all in **HTTPS**. Build all four, and Operation Go Live has its web tier.
 
@@ -17,7 +17,7 @@
 
 ### 1. HTTP — the request/response you'll serve
 
-You typed one by hand on Day 08. Every web interaction is a **request** and a **response**:
+You typed one by hand on Day 1. Every web interaction is a **request** and a **response**:
 
 ```
 GET /index.html HTTP/1.1      ← method + path + version
@@ -108,7 +108,7 @@ A quick tour of the handshake:
 
 ## Lab · ~50 min
 
-Work **inside your Vagrant VM**. (If you enabled `ufw` on Day 10, ports 80 and 443 are already allowed.)
+Work **inside your Vagrant VM**. (If you enabled `ufw` on Day 3, ports 80 and 443 are already allowed.)
 
 ### Step 1 — Install Nginx
 
@@ -294,7 +294,7 @@ The browser would warn (untrusted signer), but the connection is fully encrypted
 
 ## Assignment
 
-1. **Name-based virtual hosts.** Configure Nginx to serve **two different sites on port 80** from the same VM, chosen by hostname — `site-a.local` and `site-b.local` — each with its own `root` and a distinct `index.html`. Add both names to `/etc/hosts` pointing at `127.0.0.1` (you did this on Day 09), then prove each returns its own page with `curl -H "Host: site-a.local" http://localhost` and the same for `site-b`. Paste both configs and both outputs.
+1. **Name-based virtual hosts.** Configure Nginx to serve **two different sites on port 80** from the same VM, chosen by hostname — `site-a.local` and `site-b.local` — each with its own `root` and a distinct `index.html`. Add both names to `/etc/hosts` pointing at `127.0.0.1` (you did this on Day 2), then prove each returns its own page with `curl -H "Host: site-a.local" http://localhost` and the same for `site-b`. Paste both configs and both outputs.
 
 2. **Read the story in the logs.** With your site running, make a successful request, a request to a path that doesn't exist, and (bonus) stop your backend and hit the proxy. Then from `/var/log/nginx/` find the log lines and report: the **status code** for each case (expect a 200, a 404, and a 502), and one sentence on what a **502 Bad Gateway** tells you about where the problem is.
 

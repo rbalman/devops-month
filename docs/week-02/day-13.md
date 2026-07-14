@@ -1,4 +1,4 @@
-# Day 13 · Containers II — Dockerfile & Building Images
+# Day 6 · Containers II — Dockerfile & Building Images
 
 ## Learning Objectives
 

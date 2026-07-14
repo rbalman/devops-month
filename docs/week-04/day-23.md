@@ -1,4 +1,4 @@
-# Day 23 · AWS Basics II — VPC, S3 & Security Groups
+# Day 2 · AWS Basics II — VPC, S3 & Security Groups
 
 ## Learning Objectives
 

@@ -1,4 +1,4 @@
-# Day 22 · AWS Basics I — IAM & EC2
+# Day 1 · AWS Basics I — IAM & EC2
 
 ## Learning Objectives
 
@@ -196,7 +196,7 @@ aws ec2 stop-instances --instance-ids $INSTANCE_ID
 3. Why is it bad practice to use the AWS root account for daily operations?
 4. What is the `t3.micro` instance type? How does it compare to `t3.small` and `t3.medium` in CPU and RAM?
 
-Document the `$INSTANCE_ID`, `$SG_ID`, and `$PUBLIC_IP` — you'll need them on Day 25.
+Document the `$INSTANCE_ID`, `$SG_ID`, and `$PUBLIC_IP` — you'll need them on Day 4.
 
 ---
 

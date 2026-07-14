@@ -8,13 +8,13 @@ Each session is **1–1.5 hours** of focused work: ~20 min theory + ~50 min hand
 
 | Day | Topic | Key Skills |
 |---|---|---|
-| [Day 01](week-01/day-01.md) | DevOps Intro & Machine Setup | What is DevOps, install tools, set up environment |
-| [Day 02](week-01/day-02.md) | Filesystem, Files & Text | History, FHS, navigation, file manipulation, `grep`/`sed`/`awk`, pipes |
-| [Day 03](week-01/day-03.md) | Process & Disk Management | `ps`/`top`/`kill`, signals, `df`/`du`/`lsblk`, load average |
-| [Day 04](week-01/day-04.md) | Users, Groups & Permissions | Users/groups, `chmod`/`chown`, `rwx`, basic networking checks |
-| [Day 05](week-01/day-05.md) | The Shell | Shell types, ~/.bashrc config, env vars, exit codes, aliases, functions |
-| [Day 06](week-01/day-06.md) | Shell Scripting I — Fundamentals | Scripts, variables, quoting, input, arithmetic, command substitution, exit codes |
-| [Day 07](week-01/day-07.md) | Shell Scripting II — Logic, Loops & Reuse | `set -euo pipefail`, `if`/`case`, loops, `while read`, arguments, functions, debugging, cron |
+| [Day 1](week-01/day-01.md) | DevOps Intro & Machine Setup | What is DevOps, install tools, set up environment |
+| [Day 2](week-01/day-02.md) | Filesystem, Files & Text | History, FHS, navigation, file manipulation, `grep`/`sed`/`awk`, pipes |
+| [Day 3](week-01/day-03.md) | Process & Disk Management | `ps`/`top`/`kill`, signals, `df`/`du`/`lsblk`, load average |
+| [Day 4](week-01/day-04.md) | Users, Groups & Permissions | Users/groups, `chmod`/`chown`, `rwx`, basic networking checks |
+| [Day 5](week-01/day-05.md) | The Shell | Shell types, ~/.bashrc config, env vars, exit codes, aliases, functions |
+| [Day 6](week-01/day-06.md) | Shell Scripting I — Fundamentals | Scripts, variables, quoting, input, arithmetic, command substitution, exit codes |
+| [Day 7](week-01/day-07.md) | Shell Scripting II — Logic, Loops & Reuse | `set -euo pipefail`, `if`/`case`, loops, `while read`, arguments, functions, debugging, cron |
 
 *See also: [Beyond the Basics](week-01/beyond-the-basics.md) — a reference map of Linux topics, config files, and commands we don't cover in class.*
 
@@ -24,12 +24,12 @@ Each session is **1–1.5 hours** of focused work: ~20 min theory + ~50 min hand
 
 | Day | Topic | Key Skills |
 |---|---|---|
-| [Day 08](week-02/day-08.md) | Networking I — Addressing & the Tools to See It | IPv4, classes, CIDR/subnets, private nets & NAT, ports, TCP/UDP; `ip`/`ss`/`netstat`/`ping`/`traceroute`/`nc`/`tcpdump` |
-| [Day 09](week-02/day-09.md) | Networking II — DNS & Mail | DNS hierarchy & resolution flow, `dig`, record types, `/etc/hosts` & resolv.conf, TTL; MX/SPF/DKIM/DMARC, real mail-server demo (GreenMail) |
-| [Day 10](week-02/day-10.md) | Networking III — SSH, Tunnels & Firewalls | SSH keys, `~/.ssh/config`, `scp`/`rsync`, server hardening, port-forward tunnels, `ufw`, VPN concepts |
-| [Day 11](week-02/day-11.md) | Networking IV — Nginx, Reverse Proxy & TLS | HTTP basics, static assets, virtual hosts, reverse proxy, load balancing, self-signed HTTPS |
+| [Day 1](week-02/day-08.md) | Networking I — Addressing & the Tools to See It | IPv4, classes, CIDR/subnets, private nets & NAT, ports, TCP/UDP; `ip`/`ss`/`netstat`/`ping`/`traceroute`/`nc`/`tcpdump` |
+| [Day 2](week-02/day-09.md) | Networking II — DNS & Mail | DNS hierarchy & resolution flow, `dig`, record types, `/etc/hosts` & resolv.conf, TTL; MX/SPF/DKIM/DMARC, real mail-server demo (GreenMail) |
+| [Day 3](week-02/day-10.md) | Networking III — SSH & Firewalls | SSH keys, `~/.ssh/config`, `scp`/`rsync`, server hardening, `ufw`, VPNs & bastion hosts |
+| [Day 4](week-02/day-11.md) | Networking IV — Nginx, Reverse Proxy & TLS | HTTP basics, static assets, virtual hosts, reverse proxy, load balancing, self-signed HTTPS |
 
-!!! info "Containers (Days 12–14) — coming soon"
+!!! info "Containers (Days 5–7) — coming soon"
     Docker basics, building images, and Docker Compose round out the week. Content in progress.
 
 ## Week 3 — IaC & Cloud

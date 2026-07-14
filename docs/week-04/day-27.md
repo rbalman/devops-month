@@ -1,4 +1,4 @@
-# Day 27 · Monitoring II — Loki & Log Aggregation
+# Day 6 · Monitoring II — Loki & Log Aggregation
 
 ## Learning Objectives
 

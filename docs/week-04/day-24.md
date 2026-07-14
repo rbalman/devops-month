@@ -1,4 +1,4 @@
-# Day 24 · CI/CD I — GitHub Actions Fundamentals
+# Day 3 · CI/CD I — GitHub Actions Fundamentals
 
 ## Learning Objectives
 

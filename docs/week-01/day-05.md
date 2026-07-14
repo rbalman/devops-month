@@ -1,4 +1,4 @@
-# Day 05 · The Shell — Types, Config & Environment
+# Day 5 · The Shell — Types, Config & Environment
 
 ## Learning Objectives
 

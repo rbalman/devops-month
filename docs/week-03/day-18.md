@@ -1,4 +1,4 @@
-# Day 18 · Ansible III — Roles, Variables & Templates
+# Day 4 · Ansible III — Roles, Variables & Templates
 
 ## Learning Objectives
 
@@ -276,7 +276,7 @@ ansible webservers -i inventory.ini -m shell -a "cat /etc/nginx/sites-available/
 
 Create a role `roles/app` that:
 
-1. Deploys a simple Python Flask app (you can reuse Day 13's `app.py`)
+1. Deploys a simple Python Flask app (you can reuse Week 2, Day 6's `app.py`)
 2. Installs Python3 and pip from `defaults/main.yml` variables
 3. Copies the app file using a `files/` directory
 4. Creates a systemd service using a Jinja2 template (`files/app.service.j2`)

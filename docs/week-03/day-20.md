@@ -1,4 +1,4 @@
-# Day 20 · Terraform II — State, Variables & Modules
+# Day 6 · Terraform II — State, Variables & Modules
 
 ## Learning Objectives
 
@@ -25,7 +25,7 @@ The state file (`terraform.tfstate`) is Terraform's database of the real-world r
 - Versioning and backup
 
 ```hcl
-# Remote state in S3 (Day 22+ topic, preview here)
+# Remote state in S3 (Week 4 topic, preview here)
 terraform {
   backend "s3" {
     bucket = "my-terraform-state"

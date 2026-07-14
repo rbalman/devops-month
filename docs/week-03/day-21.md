@@ -1,4 +1,4 @@
-# Day 21 · Review & Mini Project — Infrastructure as Code End-to-End
+# Day 7 · Review & Mini Project — Infrastructure as Code End-to-End
 
 ## Learning Objectives
 
@@ -279,5 +279,5 @@ Then answer:
 ## Further Reading
 
 - [Terraform + Ansible together — HashiCorp blog](https://developer.hashicorp.com/terraform/tutorials/provision/ansible)
-- Review Days 15–20 notes for anything that felt unclear
+- Review Days 1–6 notes for anything that felt unclear
 - [IaC best practices](https://developer.hashicorp.com/terraform/tutorials/aws-get-started/infrastructure-as-code)

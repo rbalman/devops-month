@@ -57,19 +57,19 @@ nav:
   - Home: index.md
   - Schedule: schedule.md
   - Week 1 — Linux System Administration:
-    - Day 01 · DevOps Intro & Setup: week-01/day-01.md
-    - Day 02 · Filesystem, Files & Text: week-01/day-02.md
-    - Day 03 · Process & Disk Management: week-01/day-03.md
-    - Day 04 · Users, Groups & Permissions: week-01/day-04.md
-    - Day 05 · The Shell — Types, Config & Environment: week-01/day-05.md
-    - Day 06 · Shell Scripting I — Fundamentals: week-01/day-06.md
-    - Day 07 · Shell Scripting II — Logic, Loops & Reuse: week-01/day-07.md
+    - Day 1 · DevOps Intro & Setup: week-01/day-01.md
+    - Day 2 · Filesystem, Files & Text: week-01/day-02.md
+    - Day 3 · Process & Disk Management: week-01/day-03.md
+    - Day 4 · Users, Groups & Permissions: week-01/day-04.md
+    - Day 5 · The Shell — Types, Config & Environment: week-01/day-05.md
+    - Day 6 · Shell Scripting I — Fundamentals: week-01/day-06.md
+    - Day 7 · Shell Scripting II — Logic, Loops & Reuse: week-01/day-07.md
     - Beyond the Basics (Reference): week-01/beyond-the-basics.md
   - Week 2 — Networking & Containers:
-    - Day 08 · Networking I — Addressing & Tools: week-02/day-08.md
-    - Day 09 · Networking II — DNS & Mail: week-02/day-09.md
-    - Day 10 · Networking III — SSH, Tunnels & Firewalls: week-02/day-10.md
-    - Day 11 · Networking IV — Nginx, Reverse Proxy & TLS: week-02/day-11.md
+    - Day 1 · Networking I — Addressing & Tools: week-02/day-08.md
+    - Day 2 · Networking II — DNS & Mail: week-02/day-09.md
+    - Day 3 · Networking III — SSH & Firewalls: week-02/day-10.md
+    - Day 4 · Networking IV — Nginx, Reverse Proxy & TLS: week-02/day-11.md
   - Week 3 — IaC & Cloud: week-03/index.md
   - Week 4 — CI/CD & Monitoring: week-04/index.md
   - Resources: resources.md

@@ -1,4 +1,4 @@
-# Day 12 · Containers I — Docker Basics
+# Day 5 · Containers I — Docker Basics
 
 ## Learning Objectives
 
@@ -45,7 +45,7 @@ A **Docker image** is like a class in programming. A **container** is like an in
 | **Image** | Read-only template with app + dependencies |
 | **Container** | Running instance of an image |
 | **Registry** | Storage for images (Docker Hub, ECR, GCR) |
-| **Dockerfile** | Instructions to build an image (Day 13) |
+| **Dockerfile** | Instructions to build an image (Day 6) |
 | **Volume** | Persistent storage attached to a container |
 | **Network** | Virtual network connecting containers |
 

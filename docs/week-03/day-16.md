@@ -1,4 +1,4 @@
-# Day 16 · Ansible I — Inventory & Ad-hoc Commands
+# Day 2 · Ansible I — Inventory & Ad-hoc Commands
 
 ## Learning Objectives
 
