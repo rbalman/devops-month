@@ -1,56 +1,39 @@
 # Day 4 · Networking IV — Nginx, Reverse Proxy & TLS
 
-> Four days of networking come together today. You can address machines, resolve names, and reach them securely — now you'll run the thing that *serves* them. **Nginx** is the front door of most of the internet: it hands out static files, forwards requests to your app, spreads load across many app copies, and wraps it all in **HTTPS**. Build all four, and Operation Go Live has its web tier.
+> Four days of networking come together today. You can address machines, resolve names, and reach them securely — now you'll run the thing that *serves* them. **Nginx** is the front door of most of the internet: it hands out static files, wraps them in **HTTPS**, records every request, forwards traffic to your app, and spreads load across many app copies. Build all of it, and Operation Go Live has its web tier.
 
 ## Learning Objectives
 
-- Explain what a web server does and read the anatomy of an HTTP request/response
-- Install Nginx and understand its configuration layout
+- Install and run Nginx and understand its configuration layout
 - Serve **static assets** from a `server` block (virtual host)
-- Put Nginx in front of an app as a **reverse proxy**
+- Generate a **self-signed SSL certificate** and serve your site over **HTTPS**
+- Shape Nginx **access logs** with a custom `log_format`
+- Put Nginx in front of a **Python API** as a **reverse proxy**
 - Spread traffic across multiple backends as a **load balancer**
-- Understand TLS and serve your site over **HTTPS** with a self-signed certificate
 
 ---
 
 ## Theory · ~20 min
 
-### 1. HTTP — the request/response you'll serve
-
-You typed one by hand on Day 1. Every web interaction is a **request** and a **response**:
-
-```
-GET /index.html HTTP/1.1      ← method + path + version
-Host: example.com             ← headers
-                              ← blank line ends the request
-```
-```
-HTTP/1.1 200 OK               ← version + status code
-Content-Type: text/html       ← headers
-                              ← blank line
-<html>...</html>              ← body
-```
-
-Status codes tell the story: **2xx** success, **3xx** redirect, **4xx** you (client) erred (404 not found), **5xx** the server erred (502 bad gateway). You'll read these in logs all week.
-
-### 2. What a web server actually does
+### 1. What a web server actually does
 
 A **web server** listens on a port (80 for HTTP, 443 for HTTPS) and, for each request, does one of four jobs:
 
 | Job | Meaning |
 |---|---|
 | **Serve static files** | Hand back HTML/CSS/JS/images from disk |
+| **Terminate TLS** | Handle HTTPS so the app behind it can speak plain HTTP |
 | **Reverse proxy** | Forward the request to a backend app and relay its reply |
 | **Load balance** | Distribute requests across several backends |
-| **Terminate TLS** | Handle HTTPS so the app behind it can speak plain HTTP |
 
-**Nginx** ("engine-x") does all four and is the most-deployed web server in the world. Its event-driven model handles thousands of connections cheaply — which is why it usually sits at the front of production stacks.
+**Nginx** ("engine-x") does all four and is the most-deployed web server in the world. Its event-driven model handles thousands of connections cheaply — which is why it usually sits at the front of production stacks. Every reply carries a **status code**: **2xx** success, **3xx** redirect, **4xx** the client erred (404 not found), **5xx** the server erred (502 bad gateway) — you'll read these in the logs later today.
 
-### 3. Nginx config layout
+### 2. Nginx config layout
 
 ```
 /etc/nginx/
 ├── nginx.conf          ← global settings; includes the rest
+├── conf.d/             ← extra http-level config (e.g. log formats)
 ├── sites-available/    ← every site config you've written (may be inactive)
 ├── sites-enabled/      ← symlinks to the ones that are ON
 └── snippets/           ← reusable fragments (e.g. TLS settings)
@@ -73,6 +56,63 @@ server {
 
 `try_files $uri $uri/ =404` means: try the file, then the directory, else return 404.
 
+### 3. TLS & self-signed certificates — the padlock
+
+**TLS** (Transport Layer Security; the successor to **SSL**) encrypts the connection so nobody between client and server can read or tamper with it. When Nginx "terminates TLS," it holds the certificate and does the crypto, handing plain HTTP to your app behind it.
+
+A quick tour of the handshake:
+
+1. Client connects; server presents its **certificate** (contains the domain, a public key, an expiry, and a CA's signature).
+2. Client checks the certificate is signed by a **Certificate Authority (CA)** it trusts.
+3. The two sides agree on a session key; everything after is encrypted.
+
+**A certificate is a key pair plus an identity, sealed by a signature:**
+
+| Piece | What it is |
+|---|---|
+| **Private key** | A secret you generate and *never* share; does the decryption/signing |
+| **Public key** | Derived from the private key, safe to hand out; ends up *inside* the certificate |
+| **CSR** (Certificate Signing Request) | Your public key + identity (domain, org), bundled so a CA can sign it |
+
+**Who signs the CSR** is the only difference between the two paths:
+
+```
+CA-signed:    you ─CSR─▶ Certificate Authority ─signs with CA key─▶ trusted cert
+Self-signed:  you ─────▶ sign it with your OWN key ──────────────▶ untrusted cert
+```
+
+A **self-signed** cert skips the CA — the same key that owns the cert also signs it. The crypto is identical to a real one, but no browser has your key in its trust store, so it warns. That's the trade-off for a cert you can mint offline yourself.
+
+| Type | Trusted by browsers? | Use |
+|---|---|---|
+| **Self-signed** | No (warning shown) | Local dev, internal tools — *today's lab* |
+| **Let's Encrypt** | Yes (free, automated CA) | Public sites — *your Week 4 Go-Live* |
+| **Commercial CA** | Yes (paid) | Enterprise/EV needs |
+
+!!! note "Self-signed today, Let's Encrypt in production"
+    A real Let's Encrypt cert needs a **public domain pointing at a reachable server on port 80** to validate, which you'll have in Week 4 on a real cloud box. `certbot` automates the same CSR-to-CA round trip you'd otherwise do by hand. See [Advanced Topics](#advanced-topics).
+
+**Generate and self-sign one with `openssl`** — two commands: make a private key, then sign a certificate with it.
+
+```bash
+# 1. A 2048-bit private key (keep this secret)
+openssl genrsa -out golive.key 2048
+
+# 2. A self-signed certificate valid for a year; CN must match the hostname you serve
+openssl req -x509 -new -nodes -key golive.key -days 365 \
+  -out golive.crt -subj "/CN=localhost"
+```
+
+`-x509` says "self-sign directly" (no CSR sent anywhere), `-nodes` leaves the key passphrase-free so Nginx can start unattended. **Point Nginx at the pair** with two directives inside the HTTPS `server` block:
+
+```nginx
+server {
+    listen 443 ssl;
+    ssl_certificate     /etc/nginx/certs/golive.crt;   # the certificate (public)
+    ssl_certificate_key /etc/nginx/certs/golive.key;   # the private key (secret)
+}
+```
+
 ### 4. Reverse proxy vs load balancer
 
 A **reverse proxy** stands in front of one backend app and forwards to it — the client only ever talks to Nginx. Turn one backend into a **pool** and Nginx becomes a **load balancer**, rotating requests across them (round-robin by default) so no single app instance is overwhelmed and any one can die without downtime.
@@ -83,34 +123,56 @@ Client ─▶ Nginx ─▶ app :3002    (load balancer: one front, many backends
               └─▶ app :3003
 ```
 
-### 5. TLS — the padlock
+**Run a backend on several ports** to see this for real. Any tiny server works (a Docker container, a Node app…); the simplest is Python's built-in one, launched three times:
 
-**TLS** (Transport Layer Security; the successor to **SSL**) encrypts the connection so nobody between client and server can read or tamper with it. When Nginx "terminates TLS," it holds the certificate and does the crypto, handing plain HTTP to your app behind it.
+```bash
+# The same "app" on three ports
+for p in 3001 3002 3003; do
+  python3 -m http.server "$p" --bind 127.0.0.1 &
+done
+```
 
-A quick tour of the handshake:
+Then declare those three as an `upstream` **pool** and forward to it — one backend makes Nginx a reverse proxy, a pool makes it a load balancer:
 
-1. Client connects; server presents its **certificate** (contains the domain, a public key, an expiry, and a CA's signature).
-2. Client checks the certificate is signed by a **Certificate Authority (CA)** it trusts.
-3. The two sides agree on a session key; everything after is encrypted.
+```nginx
+upstream app_pool {
+    server 127.0.0.1:3001;
+    server 127.0.0.1:3002;
+    server 127.0.0.1:3003;
+}
 
-**Certificates come in three flavors:**
+server {
+    listen 80;
+    location / {
+        proxy_pass http://app_pool;    # round-robins across 3001 → 3002 → 3003
+    }
+}
+```
 
-| Type | Trusted by browsers? | Use |
-|---|---|---|
-| **Self-signed** | No (warning shown) | Local dev, internal tools — *today's lab* |
-| **Let's Encrypt** | Yes (free, automated CA) | Public sites — *your Week 4 Go-Live* |
-| **Commercial CA** | Yes (paid) | Enterprise/EV needs |
+### 5. Logs — every request, recorded
 
-!!! note "Self-signed today, Let's Encrypt in production"
-    A self-signed cert uses the **exact same encryption** as a real one — browsers just don't *trust* the signer, so they warn. It's perfect for learning offline. A real Let's Encrypt cert needs a **public domain pointing at a reachable server on port 80** to validate, which you'll have in Week 4 on a real cloud box. See [Advanced Topics](#advanced-topics).
+Nginx writes an **access log** line per request and an **error log** line per failure. A `log_format` directive lets you decide *what* goes in each access line, then `access_log` points a site at that shape:
+
+```nginx
+log_format golive '$remote_addr [$time_local] "$request" $status ${request_time}s';
+access_log /var/log/nginx/golive_access.log golive;
+```
+
+A single request then lands in the log as one line — each `$variable` filled in for that request:
+
+```
+127.0.0.1 [15/Jul/2026:10:22:41 +0000] "GET / HTTP/1.1" 200 0.001s
+```
+
+Here `$status` tells you it was a **200** and `$request_time` that it took a millisecond. Good log shape is how you later answer "which requests are slow?" and "who's getting 502s?".
 
 ---
 
 ## Lab · ~50 min
 
-Work **inside your Vagrant VM**. (If you enabled `ufw` on Day 3, ports 80 and 443 are already allowed.)
+Work **inside your Vagrant VM**. (If you enabled `ufw` on Day 3, ports 80 and 443 are already allowed.) Each step **evolves the same `golive` site**, so keep going in order.
 
-### Step 1 — Install Nginx
+### Step 1 — Install & start Nginx
 
 ```bash
 sudo apt update && sudo apt install -y nginx
@@ -139,9 +201,6 @@ server {
     root /var/www/golive;
     index index.html;
 
-    access_log /var/log/nginx/golive_access.log;
-    error_log  /var/log/nginx/golive_error.log;
-
     location / {
         try_files $uri $uri/ =404;
     }
@@ -159,80 +218,9 @@ curl http://localhost                          # your page
 !!! tip "`nginx -t` then `reload`, every time"
     `nginx -t` validates the config; `reload` applies it with **zero downtime** (existing connections finish). Never `restart` a busy server when `reload` will do.
 
-### Step 3 — Become a reverse proxy
+### Step 3 — Generate a self-signed certificate & serve HTTPS
 
-Start a tiny backend app, then have Nginx forward to it:
-
-```bash
-python3 -m http.server 3000 --bind 127.0.0.1 &     # a stand-in "app" on :3000
-BACKEND=$!
-
-sudo tee /etc/nginx/sites-available/golive << 'EOF'
-server {
-    listen 80;
-    server_name localhost;
-
-    location / {
-        proxy_pass http://127.0.0.1:3000;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    }
-}
-EOF
-
-sudo nginx -t && sudo systemctl reload nginx
-curl http://localhost                              # served by the backend, THROUGH Nginx
-kill $BACKEND
-```
-
-Those `proxy_set_header` lines pass the real client info to the backend — without them the app thinks every request came from Nginx itself.
-
-### Step 4 — Turn it into a load balancer
-
-Run **three** backends, then define an `upstream` pool and watch Nginx rotate between them:
-
-```bash
-# Three tiny backends, each reporting its own port
-for p in 3001 3002 3003; do
-  ( echo "Backend on port $p" > /tmp/be-$p.txt
-    cd /tmp && python3 -m http.server "$p" --bind 127.0.0.1 ) &
-done
-
-sudo tee /etc/nginx/sites-available/golive << 'EOF'
-upstream app_pool {
-    server 127.0.0.1:3001;
-    server 127.0.0.1:3002;
-    server 127.0.0.1:3003;
-}
-
-server {
-    listen 80;
-    server_name localhost;
-
-    location / {
-        proxy_pass http://app_pool;
-        proxy_set_header Host $host;
-    }
-}
-EOF
-
-sudo nginx -t && sudo systemctl reload nginx
-
-# Hit it several times — watch the port change round-robin
-for i in $(seq 6); do curl -s http://localhost/be-300{1,2,3}.txt 2>/dev/null; done
-for i in $(seq 6); do curl -s http://localhost/ | head -1; done
-```
-
-Requests fan out across `3001 → 3002 → 3003 → 3001 …`. Kill one backend and Nginx routes around it — that's zero-downtime resilience in three lines.
-
-```bash
-pkill -f "http.server 300"     # stop all three backends
-```
-
-### Step 5 — Serve HTTPS with a self-signed certificate
-
-Generate a key + self-signed cert, then add a TLS `server` block:
+First mint a key + self-signed cert in one `openssl` command:
 
 ```bash
 sudo mkdir -p /etc/nginx/certs
@@ -240,7 +228,22 @@ sudo openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
   -keyout /etc/nginx/certs/golive.key \
   -out    /etc/nginx/certs/golive.crt \
   -subj "/C=NP/ST=Bagmati/L=Kathmandu/O=DevOpsMonth/CN=localhost"
+```
 
+What each flag does:
+
+| Flag | Meaning |
+|---|---|
+| `req -x509` | Make a self-signed certificate directly (skip the CSR-to-CA round trip) |
+| `-newkey rsa:2048` | Generate a fresh 2048-bit RSA private key at the same time |
+| `-nodes` | Don't passphrase-encrypt the key, so Nginx can start unattended |
+| `-days 365` | Valid for a year — self-signed certs have no auto-renewal |
+| `-keyout` / `-out` | Where to write the private key and the certificate |
+| `-subj` | Identity fields; **`CN`** (Common Name) must match the hostname you serve |
+
+Now redirect HTTP to HTTPS and serve the site over TLS:
+
+```bash
 sudo tee /etc/nginx/sites-available/golive << 'EOF'
 # Redirect all HTTP to HTTPS
 server {
@@ -280,6 +283,142 @@ openssl x509 -in /etc/nginx/certs/golive.crt -noout -subject -dates
 
 The browser would warn (untrusted signer), but the connection is fully encrypted — the same TLS a real cert uses.
 
+### Step 4 — Shape your access logs
+
+`log_format` lives in the **http** context, so define it in `conf.d/` (included by `nginx.conf`), then point your site's `access_log` at it:
+
+```bash
+sudo tee /etc/nginx/conf.d/golive_log.conf << 'EOF'
+log_format golive '$remote_addr [$time_local] "$request" '
+                  '$status ${body_bytes_sent}b ${request_time}s '
+                  '"$http_user_agent"';
+EOF
+```
+
+Add the `access_log` line to the HTTPS `server` block (keep everything else from Step 3):
+
+```bash
+sudo sed -i '/listen 443 ssl;/a\    access_log /var/log/nginx/golive_access.log golive;' \
+  /etc/nginx/sites-available/golive
+
+sudo nginx -t && sudo systemctl reload nginx
+
+curl -k https://localhost >/dev/null            # generate a request
+curl -k https://localhost/nope >/dev/null       # generate a 404
+sudo tail -n 5 /var/log/nginx/golive_access.log
+```
+
+Each line now shows the client IP, the exact request, the **status code**, bytes sent, and how long Nginx took — the fields you'll grep during an incident.
+
+### Step 5 — Reverse-proxy a Python API
+
+Real sites serve a running app, not just files. Write a tiny Python API that reports which port answered, then have Nginx forward to it:
+
+```bash
+cat > /tmp/api.py << 'EOF'
+from http.server import BaseHTTPRequestHandler, HTTPServer
+import json, sys
+
+port = int(sys.argv[1]) if len(sys.argv) > 1 else 3000
+
+class Handler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.end_headers()
+        self.wfile.write(json.dumps({"message": "hello from the API", "port": port}).encode())
+    def log_message(self, *a): pass   # keep the terminal quiet
+
+HTTPServer(("127.0.0.1", port), Handler).serve_forever()
+EOF
+
+python3 /tmp/api.py 3000 &            # start the app on :3000
+BACKEND=$!
+```
+
+Swap the HTTPS `location /` from serving files to proxying the app:
+
+```bash
+sudo tee /etc/nginx/sites-available/golive << 'EOF'
+server {
+    listen 80;
+    server_name localhost;
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    server_name localhost;
+
+    ssl_certificate     /etc/nginx/certs/golive.crt;
+    ssl_certificate_key /etc/nginx/certs/golive.key;
+
+    access_log /var/log/nginx/golive_access.log golive;
+
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
+}
+EOF
+
+sudo nginx -t && sudo systemctl reload nginx
+curl -k https://localhost             # JSON from the API, THROUGH Nginx over HTTPS
+kill $BACKEND
+```
+
+Those `proxy_set_header` lines pass the real client info to the backend — without them the app thinks every request came from Nginx itself.
+
+### Step 6 — Load-balance across backends
+
+Run **three** copies of the API, then define an `upstream` pool and watch Nginx rotate between them:
+
+```bash
+for p in 3001 3002 3003; do python3 /tmp/api.py "$p" & done
+
+sudo tee /etc/nginx/sites-available/golive << 'EOF'
+upstream app_pool {
+    server 127.0.0.1:3001;
+    server 127.0.0.1:3002;
+    server 127.0.0.1:3003;
+}
+
+server {
+    listen 80;
+    server_name localhost;
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    server_name localhost;
+
+    ssl_certificate     /etc/nginx/certs/golive.crt;
+    ssl_certificate_key /etc/nginx/certs/golive.key;
+
+    access_log /var/log/nginx/golive_access.log golive;
+
+    location / {
+        proxy_pass http://app_pool;
+        proxy_set_header Host $host;
+    }
+}
+EOF
+
+sudo nginx -t && sudo systemctl reload nginx
+
+# Hit it several times — watch the "port" in the JSON change round-robin
+for i in $(seq 6); do curl -sk https://localhost; echo; done
+```
+
+Replies fan out across `3001 → 3002 → 3003 → 3001 …`. Kill one backend and Nginx routes around it — that's zero-downtime resilience in a few lines.
+
+```bash
+pkill -f "api.py"     # stop all three backends
+```
+
 ---
 
 ## Advanced Topics
@@ -296,7 +435,7 @@ The browser would warn (untrusted signer), but the connection is fully encrypted
 
 1. **Name-based virtual hosts.** Configure Nginx to serve **two different sites on port 80** from the same VM, chosen by hostname — `site-a.local` and `site-b.local` — each with its own `root` and a distinct `index.html`. Add both names to `/etc/hosts` pointing at `127.0.0.1` (you did this on Day 2), then prove each returns its own page with `curl -H "Host: site-a.local" http://localhost` and the same for `site-b`. Paste both configs and both outputs.
 
-2. **Read the story in the logs.** With your site running, make a successful request, a request to a path that doesn't exist, and (bonus) stop your backend and hit the proxy. Then from `/var/log/nginx/` find the log lines and report: the **status code** for each case (expect a 200, a 404, and a 502), and one sentence on what a **502 Bad Gateway** tells you about where the problem is.
+2. **Read the story in the logs.** With your proxied site running, make a successful request, a request to a path that doesn't exist, and (bonus) stop your backend and hit the proxy. Then from `/var/log/nginx/golive_access.log` (and `error.log`) find the log lines and report: the **status code** for each case (expect a 200, a 404, and a 502), and one sentence on what a **502 Bad Gateway** tells you about where the problem is.
 
 ---
 

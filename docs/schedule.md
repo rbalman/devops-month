@@ -27,7 +27,7 @@ Each session is **1–1.5 hours** of focused work: ~20 min theory + ~50 min hand
 | [Day 1](week-02/day-08.md) | Networking I — Addressing & the Tools to See It | IPv4, classes, CIDR/subnets, private nets & NAT, ports, TCP/UDP; `ip`/`ss`/`netstat`/`ping`/`traceroute`/`nc`/`tcpdump` |
 | [Day 2](week-02/day-09.md) | Networking II — DNS & Mail | DNS hierarchy & resolution flow, `dig`, record types, `/etc/hosts` & resolv.conf, TTL; MX/SPF/DKIM/DMARC, real mail-server demo (GreenMail) |
 | [Day 3](week-02/day-10.md) | Networking III — SSH & Firewalls | SSH keys, `~/.ssh/config`, `scp`/`rsync`, server hardening, `ufw`, VPNs & bastion hosts |
-| [Day 4](week-02/day-11.md) | Networking IV — Nginx, Reverse Proxy & TLS | HTTP basics, static assets, virtual hosts, reverse proxy, load balancing, self-signed HTTPS |
+| [Day 4](week-02/day-11.md) | Networking IV — Nginx, Reverse Proxy & TLS | Static assets, virtual hosts, self-signed HTTPS, log formatting, reverse proxy, load balancing |
 
 !!! info "Containers (Days 5–7) — coming soon"
     Docker basics, building images, and Docker Compose round out the week. Content in progress.

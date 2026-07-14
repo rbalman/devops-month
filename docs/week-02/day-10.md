@@ -272,19 +272,20 @@ rsync -av ~/site/ self:/tmp/site/                # note: only the CHANGED file t
 You have a working key (Step 2), so it's now safe to turn off passwords. We use a drop-in file rather than editing the main config:
 
 ```bash
-sudo tee /etc/ssh/sshd_config.d/99-hardening.conf << 'EOF'
+sudo tee /etc/ssh/sshd_config.d/00-hardening.conf << 'EOF'
 PasswordAuthentication no
 PermitRootLogin no
 EOF
 
-sudo sshd -t                      # ALWAYS test the config before applying
+sudo sshd -t                                        # test config SYNTAX before applying
 sudo systemctl reload ssh
 
+sudo sshd -T | grep -i passwordauthentication       # verify the EFFECTIVE value → must print: no
 ssh self 'echo "key login still works after hardening"'   # proof you're not locked out
 ```
 
-!!! note "Why a `.d/` drop-in?"
-    Dropping a small file in `sshd_config.d/` leaves the vendor's main config untouched and makes your change obvious and reversible — the same pattern you saw with Nginx `sites-available` and cron. To undo: `sudo rm /etc/ssh/sshd_config.d/99-hardening.conf && sudo systemctl reload ssh`.
+!!! warning "The filename number matters — `sshd` keeps the *first* match, not the last"
+    `sshd` reads its config as one stream, expanding `Include /etc/ssh/sshd_config.d/*.conf` (near the **top** of the main file) in place — and for each setting it uses the **first** value it sees. Ubuntu ships a `50-cloud-init.conf` that sets `PasswordAuthentication yes`, so a `99-…` file would be read **too late** and silently lose (password login would still work!). Naming ours **`00-hardening.conf`** makes it read *first*, so it wins. This is why the `sshd -T` check above matters: **trust the effective value, not the file**. To undo: `sudo rm /etc/ssh/sshd_config.d/00-hardening.conf && sudo systemctl reload ssh`.
 
 ### Step 6 — Lock the box down with `ufw`
 
