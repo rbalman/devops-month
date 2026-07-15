@@ -70,6 +70,9 @@ nav:
     - Day 2 · Networking II — DNS & Mail: week-02/day-09.md
     - Day 3 · Networking III — SSH & Firewalls: week-02/day-10.md
     - Day 4 · Networking IV — Nginx, Reverse Proxy & TLS: week-02/day-11.md
+    - Day 5 · Containers I — Docker Basics: week-02/day-12.md
+    - Day 6 · Containers II — Building Images & Registries: week-02/day-13.md
+    - Day 7 · Containers III — Docker Compose, Volumes & Networks: week-02/day-14.md
   - Week 3 — IaC & Cloud: week-03/index.md
   - Week 4 — CI/CD & Monitoring: week-04/index.md
   - Resources: resources.md

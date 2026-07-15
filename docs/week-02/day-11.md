@@ -60,11 +60,13 @@ server {
 
 **TLS** (Transport Layer Security; the successor to **SSL**) encrypts the connection so nobody between client and server can read or tamper with it. When Nginx "terminates TLS," it holds the certificate and does the crypto, handing plain HTTP to your app behind it.
 
-A quick tour of the handshake:
+**How a secure connection is established** — a simple walk-through:
 
-1. Client connects; server presents its **certificate** (contains the domain, a public key, an expiry, and a CA's signature).
-2. Client checks the certificate is signed by a **Certificate Authority (CA)** it trusts.
-3. The two sides agree on a session key; everything after is encrypted.
+1. Browser connects to the server and asks for a secure connection.
+2. Server sends its **certificate** (the domain, a public key, an expiry, and a CA's signature).
+3. Browser checks the certificate: is it for *this* site, and still valid (not expired)?
+4. Browser checks **who issued it** — a **Certificate Authority (CA)** — and whether it trusts that CA (browsers ship with a pre-installed list of trusted CAs).
+5. If the CA is trusted and everything checks out, the two agree on a session key and the connection is **trusted and encrypted**.
 
 **A certificate is a key pair plus an identity, sealed by a signature:**
 
@@ -92,18 +94,22 @@ A **self-signed** cert skips the CA — the same key that owns the cert also sig
 !!! note "Self-signed today, Let's Encrypt in production"
     A real Let's Encrypt cert needs a **public domain pointing at a reachable server on port 80** to validate, which you'll have in Week 4 on a real cloud box. `certbot` automates the same CSR-to-CA round trip you'd otherwise do by hand. See [Advanced Topics](#advanced-topics).
 
-**Generate and self-sign one with `openssl`** — two commands: make a private key, then sign a certificate with it.
+**Generate and self-sign one with `openssl`** — a single command makes the private key and the certificate together:
 
 ```bash
-# 1. A 2048-bit private key (keep this secret)
-openssl genrsa -out golive.key 2048
-
-# 2. A self-signed certificate valid for a year; CN must match the hostname you serve
-openssl req -x509 -new -nodes -key golive.key -days 365 \
-  -out golive.crt -subj "/CN=localhost"
+openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+  -keyout golive.key -out golive.crt \
+  -subj "/CN=localhost" \
+  -addext "subjectAltName=DNS:localhost,IP:127.0.0.1"
 ```
 
-`-x509` says "self-sign directly" (no CSR sent anywhere), `-nodes` leaves the key passphrase-free so Nginx can start unattended. **Point Nginx at the pair** with two directives inside the HTTPS `server` block:
+`-x509` says "self-sign directly" (no CSR sent anywhere), `-newkey rsa:2048` generates a fresh 2048-bit key at the same time, and `-nodes` leaves it passphrase-free so Nginx can start unattended. The **`subjectAltName`** (SAN) lists the names the cert is valid for — modern clients match the hostname against the SAN, *not* the `CN`, so a cert without one fails verification even when trusted. **Inspect what you issued** — decode the certificate into human-readable form to check the subject, validity dates, and public key:
+
+```bash
+openssl x509 -in golive.crt -text -noout
+```
+
+**Point Nginx at the pair** with two directives inside the HTTPS `server` block:
 
 ```nginx
 server {
@@ -151,20 +157,28 @@ server {
 
 ### 5. Logs — every request, recorded
 
-Nginx writes an **access log** line per request and an **error log** line per failure. A `log_format` directive lets you decide *what* goes in each access line, then `access_log` points a site at that shape:
+Nginx writes an **access log** line per request and an **error log** line per failure. Two directives shape the access log, and **where each one goes matters**:
+
+- **`log_format`** names a line shape — it must live in the top-level **`http`** block (define it once, globally).
+- **`access_log`** switches logging on and picks a format by name — it goes in a **`server`** (or `location`) block.
 
 ```nginx
-log_format golive '$remote_addr [$time_local] "$request" $status ${request_time}s';
-access_log /var/log/nginx/golive_access.log golive;
+http {
+    log_format golive '$remote_addr [$time_local] "$request" $status ${request_time}s';   # define once, here
+
+    server {
+        access_log /var/log/nginx/golive_access.log golive;   # use it per-site, by name
+    }
+}
 ```
 
-A single request then lands in the log as one line — each `$variable` filled in for that request:
+A request then lands in the log as one line — each `$variable` filled in for that request:
 
 ```
 127.0.0.1 [15/Jul/2026:10:22:41 +0000] "GET / HTTP/1.1" 200 0.001s
 ```
 
-Here `$status` tells you it was a **200** and `$request_time` that it took a millisecond. Good log shape is how you later answer "which requests are slow?" and "who's getting 502s?".
+Here `$status` tells you it was a **200** and `$request_time` that it took a millisecond. Putting `log_format` inside a `server` block is the #1 beginner mistake — Nginx refuses to start with `"log_format" directive is not allowed here`. Good log shape is how you later answer "which requests are slow?" and "who's getting 502s?".
 
 ---
 
@@ -227,7 +241,8 @@ sudo mkdir -p /etc/nginx/certs
 sudo openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
   -keyout /etc/nginx/certs/golive.key \
   -out    /etc/nginx/certs/golive.crt \
-  -subj "/C=NP/ST=Bagmati/L=Kathmandu/O=DevOpsMonth/CN=localhost"
+  -subj "/C=NP/ST=Bagmati/L=Kathmandu/O=DevOpsMonth/CN=localhost" \
+  -addext "subjectAltName=DNS:localhost,IP:127.0.0.1"
 ```
 
 What each flag does:
@@ -239,7 +254,8 @@ What each flag does:
 | `-nodes` | Don't passphrase-encrypt the key, so Nginx can start unattended |
 | `-days 365` | Valid for a year — self-signed certs have no auto-renewal |
 | `-keyout` / `-out` | Where to write the private key and the certificate |
-| `-subj` | Identity fields; **`CN`** (Common Name) must match the hostname you serve |
+| `-subj` | Identity fields; `CN` (Common Name) is the primary hostname |
+| `-addext` | **Subject Alternative Name** — the hostnames/IPs the cert is valid for; modern clients match against *this*, not `CN` |
 
 Now redirect HTTP to HTTPS and serve the site over TLS:
 
@@ -271,8 +287,12 @@ EOF
 
 sudo nginx -t && sudo systemctl reload nginx
 
-curl -kI https://localhost          # -k accepts the self-signed cert; note "HTTP/1.1 200"
+curl -kI https://localhost          # -k skips verification; note "HTTP/1.1 200"
 curl -I  http://localhost           # note the 301 redirect to https
+
+# Verify properly instead of skipping: trust the cert as a CA. Works because it
+# now has a matching SAN — without -addext above, this would fail on the hostname.
+curl --cacert /etc/nginx/certs/golive.crt https://localhost
 ```
 
 Inspect the certificate you issued:
@@ -285,7 +305,7 @@ The browser would warn (untrusted signer), but the connection is fully encrypted
 
 ### Step 4 — Shape your access logs
 
-`log_format` lives in the **http** context, so define it in `conf.d/` (included by `nginx.conf`), then point your site's `access_log` at it:
+As the theory noted, `log_format` must sit in the **`http`** block — *not* in your site's `server` block. Ubuntu's `nginx.conf` pulls every file in `conf.d/` into that `http` block, so dropping the format there is the clean place for it. The `access_log` that *uses* the format then goes in the `server` block. First, the format:
 
 ```bash
 sudo tee /etc/nginx/conf.d/golive_log.conf << 'EOF'
@@ -295,11 +315,35 @@ log_format golive '$remote_addr [$time_local] "$request" '
 EOF
 ```
 
-Add the `access_log` line to the HTTPS `server` block (keep everything else from Step 3):
+Now rewrite the site config with the `access_log` line added to the HTTPS `server` block — this is the full file, so you can just replace it:
 
 ```bash
-sudo sed -i '/listen 443 ssl;/a\    access_log /var/log/nginx/golive_access.log golive;' \
-  /etc/nginx/sites-available/golive
+sudo tee /etc/nginx/sites-available/golive << 'EOF'
+# Redirect all HTTP to HTTPS
+server {
+    listen 80;
+    server_name localhost;
+    return 301 https://$host$request_uri;
+}
+
+# HTTPS
+server {
+    listen 443 ssl;
+    server_name localhost;
+
+    ssl_certificate     /etc/nginx/certs/golive.crt;
+    ssl_certificate_key /etc/nginx/certs/golive.key;
+
+    access_log /var/log/nginx/golive_access.log golive;   # ← uses the 'golive' format
+
+    root /var/www/golive;
+    index index.html;
+
+    location / {
+        try_files $uri $uri/ =404;
+    }
+}
+EOF
 
 sudo nginx -t && sudo systemctl reload nginx
 

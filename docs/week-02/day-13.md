@@ -1,260 +1,273 @@
-# Day 6 · Containers II — Dockerfile & Building Images
+# Day 6 · Containers II — Building Images & Registries
+
+> Yesterday you *ran* other people's images. Today you build **your own** — you'll package the Operation Go Live app into an image, shrink it, tag it with a real version, and push it to a registry so any machine on earth can pull and run it with one command. This is the moment your app stops being "files on a VM" and becomes a **portable artifact**.
 
 ## Learning Objectives
 
-- Write a Dockerfile to package an application
-- Build, tag, and push images to a registry
-- Understand image layers and how to keep images small
+- Write a **Dockerfile** that packages an application
+- Understand image **layers** and how the **build cache** makes rebuilds fast
+- Choose correctly between **`CMD`** and **`ENTRYPOINT`**
+- Shrink images with **slim/alpine** bases, **multi-stage builds**, and **`.dockerignore`**
+- **Tag** images meaningfully and **push/pull** them from a registry
 
 ---
 
 ## Theory · ~20 min
 
-### The Dockerfile
+### 1. The Dockerfile
 
-A Dockerfile is a text file with instructions that Docker reads top-to-bottom to build an image. Each instruction creates a new **layer** in the image.
+A **Dockerfile** is a recipe Docker reads top-to-bottom to assemble an image. Most instructions add one **layer**:
 
 ```dockerfile
-FROM ubuntu:22.04          # base image
-RUN apt-get update         # creates layer 2
-RUN apt-get install nginx  # creates layer 3
-COPY index.html /var/www/  # creates layer 4
-CMD ["nginx", "-g", "daemon off;"]  # what runs when container starts
+FROM python:3.11-slim        # base image
+WORKDIR /app                 # set the working directory
+COPY requirements.txt .      # copy one file in
+RUN pip install -r requirements.txt   # run a build command → a layer
+COPY app.py .                # copy the code in
+EXPOSE 8000                  # document the port (not published automatically)
+CMD ["python3", "app.py"]    # the default process when a container starts
 ```
 
-### Key Dockerfile Instructions
+### 2. Instruction reference
 
 | Instruction | Purpose |
 |---|---|
 | `FROM` | Base image to build on (always first) |
-| `RUN` | Execute a shell command during build |
-| `COPY` | Copy files from host into image |
-| `ADD` | Like COPY but can untar and fetch URLs |
-| `WORKDIR` | Set working directory for subsequent instructions |
-| `ENV` | Set environment variables |
-| `EXPOSE` | Document which port the container listens on |
-| `CMD` | Default command to run when container starts |
-| `ENTRYPOINT` | Main command (CMD becomes its arguments) |
+| `WORKDIR` | Set the directory for later instructions |
+| `COPY` | Copy files from the build context into the image |
+| `ADD` | Like `COPY`, but can fetch URLs and auto-extract tarballs |
+| `RUN` | Execute a command at **build** time (installs, compiles) |
+| `ENV` | Set an environment variable |
+| `ARG` | A build-time variable (not present at runtime) |
+| `EXPOSE` | Document the listening port |
+| `CMD` | Default command/args at **run** time (overridable) |
+| `ENTRYPOINT` | The fixed executable; `CMD` supplies its default args |
+| `HEALTHCHECK` | A command Docker runs to judge container health |
 
-### Image Layers and Caching
+### 3. Layers and the build cache
 
-Docker caches each layer. If a layer hasn't changed, it reuses the cached version — making rebuilds fast.
+Every layer is cached. On rebuild, Docker reuses a cached layer as long as **that instruction and everything before it are unchanged**. The first instruction that changes busts the cache for itself and all that follow.
 
-**Order matters**: Put instructions that change frequently (like `COPY . .`) after instructions that change rarely (like `RUN apt-get install`). Otherwise every code change invalidates the package install cache.
+That single rule dictates instruction order: **put what changes rarely first, what changes often last.**
 
 ```dockerfile
-# BAD — code change invalidates the apt cache
+# ❌ BAD — editing app.py re-runs the slow install every build
 COPY . .
-RUN apt-get install -y python3
+RUN pip install -r requirements.txt
 
-# GOOD — install packages first, copy code last
-RUN apt-get install -y python3
+# ✅ GOOD — deps install is cached until requirements.txt actually changes
+COPY requirements.txt .
+RUN pip install -r requirements.txt
 COPY . .
 ```
 
-### Keeping Images Small
+### 4. `CMD` vs `ENTRYPOINT`
 
-Small images = faster pulls, smaller attack surface:
+Both define what runs when the container starts — the difference is override behavior:
 
-- Use `alpine` or `slim` base images
-- Combine `RUN` commands with `&&` and `\` to reduce layers
-- Use `.dockerignore` to exclude files
-- Use multi-stage builds (copy only what's needed to the final image)
+- **`CMD`** — a *default* that's fully replaced by any command you pass to `docker run`.
+- **`ENTRYPOINT`** — the *fixed* program; anything you pass to `docker run` becomes its **arguments**.
+
+```dockerfile
+ENTRYPOINT ["python3", "app.py"]   # always runs app.py…
+CMD ["--port", "8000"]             # …with this default arg, overridable at run time
+```
+`docker run img --port 9000` → runs `python3 app.py --port 9000`. Use `ENTRYPOINT` for "this image *is* one tool"; use `CMD` alone when you want an easily replaced default.
+
+### 5. Keeping images small
+
+Small images pull faster, cost less, and expose a smaller attack surface:
+
+- Start from **`-slim`** or **`-alpine`** bases instead of a full OS
+- Chain related `RUN` steps with `&&` and clean up in the same layer (`rm -rf /var/lib/apt/lists/*`)
+- Add a **`.dockerignore`** so `.git/`, `node_modules/`, secrets, and caches never enter the build
+- Use **multi-stage builds**: compile in a heavy stage, copy only the artifact into a tiny final stage
+
+### 6. Registries and tags
+
+A **tag** names a version of an image: `repo:tag`. Pushing means uploading it to a registry so others (and your servers) can pull it.
+
+```
+docker.io/alice/golive:1.2.0
+          └user┘└name┘ └tag┘
+```
+
+Tag with a **real version** (`1.2.0`), not just `latest` — `latest` is just the tag Docker assumes when you omit one; it doesn't mean "newest" and silently drifts. A common pattern is to push both an immutable version tag *and* move `latest`.
 
 ---
 
 ## Lab · ~50 min
 
-### Step 1 — Write your first Dockerfile
+Work **inside your Vagrant VM**.
+
+### Step 1 — Containerize the Go-Live app
 
 ```bash
-mkdir -p ~/docker-labs/myapp
-cd ~/docker-labs/myapp
+mkdir -p ~/golive-app && cd ~/golive-app
 
-# Create a simple Python web app
 cat > app.py << 'EOF'
-from http.server import HTTPServer, BaseHTTPRequestHandler
-import json
-import os
+from flask import Flask, jsonify
+import os, socket
 
-class Handler(BaseHTTPRequestHandler):
-    def do_GET(self):
-        self.send_response(200)
-        self.send_header('Content-Type', 'application/json')
-        self.end_headers()
-        response = {
-            "message": "Hello from Docker!",
-            "hostname": os.environ.get("HOSTNAME", "unknown"),
-            "version": os.environ.get("APP_VERSION", "1.0")
-        }
-        self.wfile.write(json.dumps(response).encode())
+app = Flask(__name__)
 
-    def log_message(self, format, *args):
-        pass  # silence request logs
+@app.get("/")
+def index():
+    return jsonify(
+        service="golive",
+        host=socket.gethostname(),
+        version=os.getenv("APP_VERSION", "dev"),
+    )
+
+@app.get("/health")
+def health():
+    return jsonify(status="ok")
 
 if __name__ == "__main__":
-    server = HTTPServer(("", 8080), Handler)
-    print("Server running on port 8080")
-    server.serve_forever()
+    app.run(host="0.0.0.0", port=8000)
 EOF
 
-# Create the Dockerfile
-cat > Dockerfile << 'EOF'
-FROM python:3.11-slim
-
-WORKDIR /app
-
-COPY app.py .
-
-EXPOSE 8080
-
-ENV APP_VERSION=1.0
-
-CMD ["python3", "app.py"]
-EOF
-
-# Create .dockerignore
-cat > .dockerignore << 'EOF'
-*.pyc
-__pycache__/
-.git/
-*.md
-EOF
-```
-
-### Step 2 — Build and run
-
-```bash
-# Build the image
-docker build -t myapp:1.0 .
-
-# See what was built
-docker images | grep myapp
-
-# Check the layers
-docker history myapp:1.0
-
-# Run it
-docker run -d -p 8080:8080 --name myapp myapp:1.0
-
-# Test it
-curl http://localhost:8080
-```
-
-### Step 3 — Observe layer caching
-
-```bash
-# Change the app code slightly
-echo "# comment" >> app.py
-
-# Rebuild — watch which layers are cached (CACHED) vs rebuilt
-docker build -t myapp:1.1 .
-
-# Now add a dependency and see cache invalidation
 cat > requirements.txt << 'EOF'
-requests==2.31.0
+flask==3.0.0
 EOF
 
-# Update Dockerfile to use requirements.txt
 cat > Dockerfile << 'EOF'
 FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install dependencies FIRST (cache-friendly)
+# Dependencies first — cached until requirements.txt changes
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy app code LAST (changes often)
+# Code last — changes most often
 COPY app.py .
 
-EXPOSE 8080
-ENV APP_VERSION=2.0
-
+EXPOSE 8000
+ENV APP_VERSION=1.0.0
 CMD ["python3", "app.py"]
 EOF
 
-docker build -t myapp:2.0 .    # First build: all layers run
-docker build -t myapp:2.0 .    # Second build: pip install is CACHED
+cat > .dockerignore << 'EOF'
+.git/
+__pycache__/
+*.pyc
+*.md
+.env
+EOF
 ```
 
-### Step 4 — Multi-stage build
-
-Multi-stage builds let you compile in one image and copy only the result to a clean final image:
+### Step 2 — Build, run, and inspect
 
 ```bash
-mkdir -p ~/docker-labs/multistage
-cd ~/docker-labs/multistage
+docker build -t golive:1.0.0 .
 
-cat > Dockerfile << 'EOF'
-# Stage 1: Build (heavy image with build tools)
-FROM golang:1.21 AS builder
+docker images | grep golive        # your image and its size
+docker history golive:1.0.0        # the layers, newest on top
 
-WORKDIR /build
+docker run -d -p 8000:8000 --name golive golive:1.0.0
+curl http://localhost:8000         # JSON from your own image 🎉
+curl http://localhost:8000/health
+```
 
-RUN echo 'package main
-import (
-    "fmt"
-    "net/http"
-)
+### Step 3 — Watch the build cache
+
+```bash
+echo "# a tiny change" >> app.py
+docker build -t golive:1.0.1 .     # note: the pip install layer says CACHED
+```
+
+Only the `COPY app.py` layer and everything after it rebuild — the dependency install is reused. Now imagine `COPY . .` had come *before* the install: every code edit would reinstall Flask. **That's** why order matters.
+
+### Step 4 — Shrink it with a multi-stage build
+
+Multi-stage builds keep build tooling out of the final image. Here's the technique at its most extreme — a compiled binary on top of `scratch` (an empty image):
+
+```bash
+mkdir -p ~/multistage && cd ~/multistage
+
+cat > main.go << 'EOF'
+package main
+import ("fmt"; "net/http")
 func main() {
     http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-        fmt.Fprintln(w, "Hello from Go in Docker!")
+        fmt.Fprintln(w, "Hello from a scratch image!")
     })
-    http.ListenAndServe(":8080", nil)
-}' > main.go
+    http.ListenAndServe(":8000", nil)
+}
+EOF
 
+cat > Dockerfile << 'EOF'
+# Stage 1: build (heavy — full Go toolchain)
+FROM golang:1.21 AS builder
+WORKDIR /build
+COPY main.go .
 RUN CGO_ENABLED=0 go build -o server main.go
 
-# Stage 2: Final (tiny image with just the binary)
+# Stage 2: final (tiny — just the binary)
 FROM scratch
-
 COPY --from=builder /build/server /server
-
-EXPOSE 8080
+EXPOSE 8000
 ENTRYPOINT ["/server"]
 EOF
 
-docker build -t go-server:1.0 .
-docker images | grep go-server   # see how tiny it is
-
-docker run -d -p 8080:8080 --name go-server go-server:1.0
-curl http://localhost:8080
-
-docker stop go-server && docker rm go-server
+docker build -t go-server:1.0.0 .
+docker images | grep -E 'go-server|golang'   # compare final vs the builder base
+docker run -d -p 8001:8000 --name go-server go-server:1.0.0
+curl http://localhost:8001
+docker rm -f go-server
 ```
 
-### Step 5 — Push to Docker Hub
+### Step 5 — Push to a registry
+
+Create a free account at [hub.docker.com](https://hub.docker.com), then:
 
 ```bash
-# Create a free account at hub.docker.com first
+docker login                                    # prompts for your Docker Hub credentials
 
-# Log in
-docker login
+# Tag with your username + an immutable version, and also move 'latest'
+docker tag golive:1.0.0 <your-username>/golive:1.0.0
+docker tag golive:1.0.0 <your-username>/golive:latest
 
-# Tag your image with your username
-docker tag myapp:2.0 <your-dockerhub-username>/myapp:2.0
-
-# Push
-docker push <your-dockerhub-username>/myapp:2.0
-
-# Now anyone can pull it
-docker pull <your-dockerhub-username>/myapp:2.0
+docker push <your-username>/golive:1.0.0
+docker push <your-username>/golive:latest
 ```
+
+Prove it's portable — remove the local copy and pull it back:
+
+```bash
+docker rm -f golive
+docker rmi <your-username>/golive:1.0.0
+docker run -d -p 8000:8000 <your-username>/golive:1.0.0   # pulled fresh from the registry
+curl http://localhost:8000
+```
+
+!!! tip "Log in without leaving your password on disk"
+    `docker login` stores credentials in `~/.docker/config.json`. On servers and CI, use a **scoped access token** (Docker Hub → Account Settings → Security) instead of your account password, and pipe it in: `echo "$TOKEN" | docker login -u <user> --password-stdin`.
+
+---
+
+## Advanced Topics
+
+- **BuildKit & `buildx`** — the modern builder: parallel stages, build secrets, and **multi-architecture** images (amd64 + arm64 from one command) → [docs.docker.com — Multi-platform builds](https://docs.docker.com/build/building/multi-platform/)
+- **Distroless & scratch** — final images with no shell or package manager, so there's almost nothing to exploit → [GoogleContainerTools/distroless](https://github.com/GoogleContainerTools/distroless)
+- **Vulnerability scanning** — `docker scout cves` or `trivy image` to catch known CVEs before you ship → [aquasecurity/trivy](https://github.com/aquasecurity/trivy)
+- **Private registries** — GitHub Container Registry (GHCR), AWS ECR, or self-hosted Harbor for images you don't want public → [docs.docker.com — Registry](https://docs.docker.com/registry/)
+- **`dive`** — explore an image layer by layer and find wasted space → [wagoodman/dive](https://github.com/wagoodman/dive)
 
 ---
 
 ## Assignment
 
-1. What is a Docker layer? Why does layer order matter for build performance?
-2. What is the difference between `CMD` and `ENTRYPOINT`? When would you use each?
-3. Extend the `myapp` Dockerfile to accept an `APP_ENV` environment variable (development/production) and print it in the JSON response. Build and test it.
-4. What does `.dockerignore` do? What would happen if you accidentally copied a `.git/` directory or `.env` file into an image?
+1. **Optimize and ship.** Starting from the `golive` image, produce a smaller variant — measure the `docker images` size **before and after** at least two of: switching the base to `slim`/`alpine`, adding a tighter `.dockerignore`, and collapsing `RUN` layers. Report the two sizes and what you changed. Then push your optimized image to Docker Hub tagged `2.0.0`, and paste the exact `docker run` command a teammate on a clean machine would use to run it.
+
+2. **Make the entrypoint configurable.** Convert the app so its greeting/behavior is driven by an environment variable (e.g. `APP_ENV=production`), reflected in the `/` JSON response. Rebuild and run it **twice** with different `-e APP_ENV=...` values to show the same image behaving differently. *Stretch:* add a `HEALTHCHECK` instruction that curls `/health`, then show the `STATUS` column in `docker ps` transition to `healthy`.
 
 ---
 
 ## Further Reading
 
+- [Dockerfile reference](https://docs.docker.com/engine/reference/builder/) — every instruction, precisely defined
 - [Dockerfile best practices](https://docs.docker.com/develop/develop-images/dockerfile_best-practices/)
 - [Docker multi-stage builds](https://docs.docker.com/build/building/multi-stage/)
-- [Dive — tool for inspecting image layers](https://github.com/wagoodman/dive)
+- [Semantic Versioning](https://semver.org/) — what `MAJOR.MINOR.PATCH` actually promises

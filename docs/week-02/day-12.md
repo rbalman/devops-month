@@ -1,181 +1,231 @@
 # Day 5 · Containers I — Docker Basics
 
+> You've built the web tier — Nginx serving your app over HTTPS. But it all lives on one hand-configured VM: reproduce it elsewhere and you're back to *"works on my machine."* This week's finale packages the app so it runs **identically** anywhere — your laptop, a teammate's, a cloud box. That package is a **container**. Today you meet the runtime: pulling images, running containers, and giving them storage and a network — the raw materials you'll assemble into Operation Go Live's shippable stack.
+
 ## Learning Objectives
 
-- Understand what containers are and why they exist
-- Run, inspect, and manage Docker containers
-- Know the difference between an image and a container
+- Explain what a **container** is and how it differs from a virtual machine
+- Describe Docker's architecture: **client**, **daemon**, **image**, **registry**
+- Run, inspect, and manage the full **container lifecycle**
+- **Publish** container ports to reach a service from the host
+- Persist data with **volumes** and connect containers on a **network**
 
 ---
 
 ## Theory · ~20 min
 
-### The Problem Containers Solve
+### 1. Why containers exist
 
-Before containers, the classic complaint was: *"It works on my machine."* Different machines had different OS versions, libraries, dependencies — making deployment unpredictable.
-
-**Virtual Machines** (VMs) solved this by running a full OS inside another OS. But VMs are heavy — gigabytes per VM, minutes to boot.
-
-**Containers** package an application with only its dependencies, sharing the host OS kernel. They're:
-
-- Lightweight — megabytes, not gigabytes
-- Fast — start in milliseconds, not minutes
-- Portable — same image runs on any Linux host with Docker
-- Isolated — containers don't interfere with each other
-
-### How Docker Works
+A **Virtual Machine** virtualizes *hardware*: each VM ships a full guest OS (its own kernel), so it's gigabytes in size and takes minutes to boot. A **container** virtualizes the *operating system*: it shares the host's kernel and packages only your app plus its dependencies — megabytes, and it starts in milliseconds.
 
 ```
-Your App Code
-    +
-Dependencies (libraries, runtime)
-    +
-OS base (Ubuntu/Alpine/etc.)
-= Docker Image (read-only snapshot)
-
-docker run image → Container (running instance of image)
+   Virtual Machines                     Containers
+┌────────┐ ┌────────┐            ┌────────┐ ┌────────┐
+│  App   │ │  App   │            │  App   │ │  App   │
+│ Guest  │ │ Guest  │            │  deps  │ │  deps  │
+│  OS    │ │  OS    │            └────────┘ └────────┘
+├────────┴─┴────────┤            ├───────────────────┤
+│    Hypervisor     │            │  Docker Engine    │
+├───────────────────┤            ├───────────────────┤
+│      Host OS      │            │   Host OS kernel  │  ← shared!
+└───────────────────┘            └───────────────────┘
 ```
 
-A **Docker image** is like a class in programming. A **container** is like an instance of that class — you can run many containers from one image.
+The isolation isn't magic — it's two Linux kernel features: **namespaces** (a container gets its own view of processes, network, mounts, hostname) and **cgroups** (limits on CPU, memory, I/O). Docker just makes them easy to use.
 
-### Key Concepts
+### 2. Docker's architecture
+
+The `docker` command is only a **client**. It sends requests to the **daemon** (`dockerd`), a background service that does the real work — building images, running containers, pulling from registries.
+
+```
+docker CLI ──API──▶ dockerd (daemon) ──┬──▶ containers (running)
+                                        ├──▶ images (local cache)
+                                        └──▶ registry (Docker Hub) ─ pull/push
+```
+
+### 3. Images vs containers
+
+An **image** is a read-only template — your app, its dependencies, and a minimal OS userland, stacked as **layers**. A **container** is a running instance of an image with a thin **writable layer** on top.
+
+> Image is to container as **class** is to **object**: one image, many containers.
+
+Anything you write inside a running container lands in that writable layer and **disappears when the container is removed** — which is exactly why volumes (below) exist.
+
+### 4. Registries and image names
+
+A **registry** stores and distributes images. [Docker Hub](https://hub.docker.com) is the default. An image reference reads:
+
+```
+      registry / repository : tag
+      docker.io/ library/nginx : 1.27-alpine
+                 └─ user ─┘└name┘  └ version ┘
+```
+
+Official images (`nginx`, `postgres`, `ubuntu`) live under `library/` and need no username. Omit the tag and Docker assumes `:latest` — convenient, but never rely on it in production, where you want a pinned version.
 
 | Term | Meaning |
 |---|---|
-| **Image** | Read-only template with app + dependencies |
-| **Container** | Running instance of an image |
-| **Registry** | Storage for images (Docker Hub, ECR, GCR) |
-| **Dockerfile** | Instructions to build an image (Day 6) |
-| **Volume** | Persistent storage attached to a container |
-| **Network** | Virtual network connecting containers |
+| **Image** | Read-only, layered template with app + dependencies |
+| **Container** | Running instance of an image (image + writable layer) |
+| **Registry** | Storage/distribution for images (Docker Hub, GHCR, ECR) |
+| **Volume** | Docker-managed storage that outlives a container |
+| **Network** | Virtual network that lets containers talk to each other |
+
+### 5. Containers are ephemeral — volumes and networks fix that
+
+Two consequences of the writable-layer model drive most of today's lab:
+
+- **State is lost on removal.** A database in a bare container loses its data the moment you `docker rm` it. A **volume** stores that data outside the container's lifecycle.
+- **Containers are isolated by default.** To let one container reach another (app → database), you put them on the same **user-defined network**, where Docker's embedded DNS resolves containers by name.
 
 ---
 
 ## Lab · ~50 min
 
+Work **inside your Vagrant VM** (`vagrant ssh`).
+
 ### Step 1 — Install Docker
 
 ```bash
-# Install Docker Engine
-curl -fsSL https://get.docker.com | sudo sh
+curl -fsSL https://get.docker.com | sudo sh      # official install script
+sudo usermod -aG docker $USER                    # run docker without sudo
+newgrp docker                                    # apply the group now (or log out/in)
 
-# Add your user to the docker group (log out and back in after this)
-sudo usermod -aG docker $USER
-
-# Verify (may need to log out/in first, or use 'newgrp docker')
-newgrp docker
 docker --version
-docker info
+docker info                                      # talks to the daemon — confirms it's running
 ```
 
-### Step 2 — Run your first container
+!!! warning "The `docker` group is root-equivalent"
+    Anyone in the `docker` group can start a container that mounts the host's `/` and edit any file as root. On a shared server, treat `docker` group membership like `sudo`.
+
+### Step 2 — Run your first containers
 
 ```bash
-# Pull and run a hello-world container
-docker run hello-world
+docker run hello-world        # pulls the image, runs it, prints, exits
 
-# What happened:
-# 1. Docker looked for 'hello-world' image locally → not found
-# 2. Pulled it from Docker Hub (registry)
-# 3. Created a container from the image
-# 4. Started the container (it printed output and exited)
-
-# Run an Ubuntu container interactively
+# An interactive Ubuntu shell inside a container
 docker run -it ubuntu:22.04 bash
-
-# Inside the container:
-cat /etc/os-release
-whoami
-ls /
-exit              # back to your host
+cat /etc/os-release           # you're "in" Ubuntu…
+hostname                      # …with its own hostname (a namespace)
+exit                          # container stops when its main process ends
 ```
 
-### Step 3 — Run a web server in a container
+`docker run` does four things: find the image locally, pull it from the registry if missing, create a container, and start it.
+
+### Step 3 — Run a service and publish a port
 
 ```bash
-# Run Nginx in a container, mapping host port 8080 to container port 80
-docker run -d -p 8080:80 --name my-nginx nginx
+docker run -d -p 8080:80 --name web nginx
+#         │  │            └ friendly name
+#         │  └ host:container port mapping (host 8080 → container 80)
+#         └ detached (background)
 
-# -d = detached (background)
-# -p 8080:80 = host:container port mapping
-# --name = give it a friendly name
-
-# Test it
-curl http://localhost:8080
-
-# See running containers
-docker ps
-
-# See all containers (including stopped)
-docker ps -a
+curl http://localhost:8080    # the Nginx welcome page
+docker ps                     # running containers
+docker ps -a                  # include stopped ones
 ```
 
-### Step 4 — Inspect and interact with containers
+!!! note "Publishing is opt-in"
+    A container's ports are private until you `-p` (publish) them. Without `-p 8080:80`, Nginx is running but unreachable from the host.
+
+### Step 4 — Inspect and interact
 
 ```bash
-# See logs
-docker logs my-nginx
-docker logs -f my-nginx    # follow live
+docker logs web               # stdout/stderr of the container
+docker logs -f web            # follow live (Ctrl+C to stop)
 
-# Execute a command inside a running container
-docker exec my-nginx nginx -v
-docker exec -it my-nginx bash   # open a shell
+docker exec web nginx -v      # run a command inside a running container
+docker exec -it web bash      # open a shell inside it
+  ls /usr/share/nginx/html/   #   poke around, then…
+  exit
 
-# Inside the container
-cat /etc/nginx/nginx.conf
-ls /usr/share/nginx/html/
-exit
-
-# Inspect container metadata
-docker inspect my-nginx | head -60
-
-# See resource usage
-docker stats my-nginx    # live (Ctrl+C to stop)
+docker inspect web | less     # full JSON: IP, mounts, env, config
+docker stats web              # live CPU/memory (Ctrl+C to stop)
 ```
 
-### Step 5 — Container lifecycle
+### Step 5 — The container lifecycle
 
 ```bash
-# Stop a running container (graceful)
-docker stop my-nginx
+docker stop web               # graceful stop (SIGTERM, then SIGKILL)
+docker start web              # start it again — same container, same config
+docker restart web
 
-# Start it again
-docker start my-nginx
-docker ps
+docker rm -f web              # force-remove (stop + rm)
 
-# Restart
-docker restart my-nginx
-
-# Remove a container (must be stopped first)
-docker stop my-nginx
-docker rm my-nginx
-
-# Force remove (stop + rm in one command)
-docker rm -f my-nginx
-
-# See images you have locally
-docker images
-
-# Remove an image
-docker rmi hello-world
-
-# Clean up all stopped containers and unused images
-docker system prune
+docker images                 # local image cache
+docker rmi hello-world        # remove an image
+docker system prune           # reclaim: stopped containers, unused networks, dangling images
 ```
+
+### Step 6 — Persist data with a volume
+
+The writable layer dies with the container. A **named volume** survives:
+
+```bash
+docker volume create appdata
+
+# Write into the volume from one container…
+docker run --rm -v appdata:/data alpine sh -c 'echo "survives!" > /data/note.txt'
+
+# …then read it back from a brand-new container
+docker run --rm -v appdata:/data alpine cat /data/note.txt      # → survives!
+```
+
+A **bind mount** maps a host directory into the container instead — perfect for serving files you edit live:
+
+```bash
+mkdir -p ~/site && echo '<h1>From the host</h1>' > ~/site/index.html
+docker run -d -p 8081:80 -v ~/site:/usr/share/nginx/html:ro --name bindweb nginx
+curl http://localhost:8081                    # your file, served from the host dir
+docker rm -f bindweb
+```
+
+!!! tip "Volume vs bind mount"
+    **Named volume** — Docker manages the location; use it for *data* (databases, uploads). **Bind mount** — you pick the host path; use it for *config and live code* in development. You'll use both tomorrow and in Compose.
+
+### Step 7 — Connect containers on a network
+
+On a **user-defined network**, containers find each other by name:
+
+```bash
+docker network create appnet
+
+docker run -d --network appnet --name web nginx          # a service…
+docker run --rm --network appnet alpine \
+  wget -qO- http://web                                    # …reached by NAME, not IP
+```
+
+Now prove the default network has **no name resolution**:
+
+```bash
+docker run --rm alpine ping -c1 web        # "bad address 'web'" — can't resolve
+docker rm -f web
+```
+
+That name-based discovery is the whole reason multi-container apps are easy — and it's what Docker Compose automates on Day 7.
+
+---
+
+## Advanced Topics
+
+- **Rootless Docker** — run the daemon as a non-root user to shrink the blast radius → [docs.docker.com — Rootless mode](https://docs.docker.com/engine/security/rootless/)
+- **Namespaces & cgroups** — the kernel primitives Docker is built on; understand them and containers stop being magic → [Red Hat — What are namespaces and cgroups?](https://www.redhat.com/en/blog/architecting-containers-part-1-technology-comparison)
+- **Alternative runtimes** — Podman (daemonless, rootless), containerd, and the OCI standard that keeps them interchangeable → [opencontainers.org](https://opencontainers.org/)
+- **Image provenance & scanning** — where images come from and how to check them for CVEs before you run them → [docs.docker.com — Docker Scout](https://docs.docker.com/scout/)
 
 ---
 
 ## Assignment
 
-1. What is the difference between a Docker image and a container? Use an analogy.
-2. Run an Alpine Linux container interactively (`docker run -it alpine sh`). How does its size compare to Ubuntu? Run `du -sh /` inside each. Why is Alpine preferred for production images?
-3. Run `docker run -d -p 8080:80 nginx`. Then run the same command again. What happens? How does Docker name the second container?
-4. What does `docker system prune` do? Is there anything it does NOT remove by default?
+1. **Prove persistence.** Run a `postgres:15-alpine` container with a **named volume** for its data and a password via `-e POSTGRES_PASSWORD=...`. Create a table and insert a row (`docker exec -it <c> psql -U postgres -c "..."`). Then **remove the container entirely** and start a *new* one pointing at the same volume. Show the row is still there. Paste every command and its output, and explain in one line what would have happened **without** the volume.
+
+2. **Two containers, one network.** Create a user-defined network and run an `nginx` container named `web` on it. From a second, throwaway container on the **same** network, fetch `web`'s page **by name** (`wget -qO- http://web`). Then attempt the same from a container **not** on that network and show it fails. *Stretch:* run `docker network inspect <net>` and report the subnet and each container's IP — then explain why you were told to use names instead of those IPs.
 
 ---
 
 ## Further Reading
 
-- [Docker overview](https://docs.docker.com/get-started/overview/)
-- [Play with Docker](https://labs.play-with-docker.com/) — free browser-based Docker environment
-- [Docker Hub](https://hub.docker.com) — browse official images
+- [Docker overview](https://docs.docker.com/get-started/overview/) — the mental model, start to finish
+- [Play with Docker](https://labs.play-with-docker.com/) — a free, throwaway Docker playground in the browser
+- [Docker Hub](https://hub.docker.com) — browse official and community images
+- `docker <command> --help` — every subcommand is self-documenting
