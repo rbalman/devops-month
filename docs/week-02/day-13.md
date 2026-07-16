@@ -44,6 +44,8 @@ CMD ["python3", "app.py"]    # the default process when a container starts
 | `ENTRYPOINT` | The fixed executable; `CMD` supplies its default args |
 | `HEALTHCHECK` | A command Docker runs to judge container health |
 
+> 📖 For the full list of instructions and every option, see the official [Dockerfile reference](https://docs.docker.com/reference/dockerfile/).
+
 ### 3. Layers and the build cache
 
 Every layer is cached. On rebuild, Docker reuses a cached layer as long as **that instruction and everything before it are unchanged**. The first instruction that changes busts the cache for itself and all that follow.

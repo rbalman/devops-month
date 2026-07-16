@@ -78,6 +78,17 @@ Two consequences of the writable-layer model drive most of today's lab:
 - **State is lost on removal.** A database in a bare container loses its data the moment you `docker rm` it. A **volume** stores that data outside the container's lifecycle.
 - **Containers are isolated by default.** To let one container reach another (app → database), you put them on the same **user-defined network**, where Docker's embedded DNS resolves containers by name.
 
+**How you can mount storage into a container** — there are four ways, and you'll pick between them by *what* you're storing:
+
+| Type | What it is | Syntax example | Use it for |
+|---|---|---|---|
+| **Named volume** | Docker-managed storage with a name you choose; lives under `/var/lib/docker/volumes/` | `-v appdata:/data` | Databases, uploads, any **data** you must keep |
+| **Anonymous volume** | Like a named volume but Docker generates a random name; easy to lose track of | `-v /data` | Throwaway scratch space; usually you'll prefer a named one |
+| **Bind mount** | Maps an **existing host path** straight into the container | `-v ~/site:/usr/share/nginx/html:ro` | Config files and live-editable code in **development** |
+| **tmpfs mount** | Stored in the **host's RAM**, never on disk; vanishes when the container stops | `--tmpfs /tmp` | Secrets and temp files you never want written to disk |
+
+The modern, more explicit form is `--mount` (e.g. `--mount type=bind,source=~/site,target=/usr/share/nginx/html,readonly`); `-v` is the older shorthand for the same thing. Add `:ro` (or `readonly`) to mount read-only.
+
 ---
 
 ## Lab · ~50 min

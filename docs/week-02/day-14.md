@@ -86,6 +86,21 @@ app:
       condition: service_healthy
 ```
 
+### 6. Docker & container best practices
+
+A quick checklist that pulls together the last three days — pin these to memory:
+
+| Area | Do | Why |
+|---|---|---|
+| **Images** | Start from `-slim`/`-alpine`; use **multi-stage builds**; pin tags (`:1.27`, not `:latest`) | Smaller, faster pulls, reproducible, smaller attack surface |
+| **Build cache** | Order the Dockerfile stable → volatile; copy `requirements.txt` and install **before** copying app code | Reuses cached layers, so edits don't re-run slow installs |
+| **Context** | Add a **`.dockerignore`** (`.git/`, `node_modules/`, secrets) | Keeps junk and secrets out of the image and speeds builds |
+| **Process** | One concern per container; use `ENTRYPOINT` + `CMD` correctly; add a **`HEALTHCHECK`** | Simpler to scale, restart, and reason about |
+| **Data** | Keep state in **named volumes**, never the writable layer; never `down -v` on real data | Data survives `rm`/recreate; avoids accidental wipes |
+| **Config & secrets** | Inject via **env vars / `.env`**, not baked into the image; mount configs as read-only bind mounts | Same image across environments; no secrets in image history |
+| **Networking** | Use **user-defined networks** and reach services by name; expose only what's needed | DNS instead of IPs; isolation by topology |
+| **Security** | Run as a **non-root `USER`**; drop unneeded packages; remember the `docker` group is root-equivalent | Limits blast radius if a container is compromised |
+
 ---
 
 ## Lab · ~50 min
