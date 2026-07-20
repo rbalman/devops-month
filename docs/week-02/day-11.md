@@ -28,6 +28,13 @@ A **web server** listens on a port (80 for HTTP, 443 for HTTPS) and, for each re
 
 **Nginx** ("engine-x") does all four and is the most-deployed web server in the world. Its event-driven model handles thousands of connections cheaply — which is why it usually sits at the front of production stacks. Every reply carries a **status code**: **2xx** success, **3xx** redirect, **4xx** the client erred (404 not found), **5xx** the server erred (502 bad gateway) — you'll read these in the logs later today.
 
+!!! tip "📺 Watch — *NGINX Explained in 100 Seconds* (Fireship, ~2 min)"
+    A 2-minute primer on what Nginx is and why it sits at the front of the stack. Watch this first, then the deep dive in §2.
+
+    [![NGINX Explained in 100 Seconds](https://img.youtube.com/vi/JKxlsvZXG7c/hqdefault.jpg){ width="360" }](https://youtu.be/JKxlsvZXG7c)
+
+    **Chapters:** [what is Nginx](https://youtu.be/JKxlsvZXG7c?t=14) · [configuration](https://youtu.be/JKxlsvZXG7c?t=39) · [reverse proxy](https://youtu.be/JKxlsvZXG7c?t=102)
+
 ### 2. Nginx config layout
 
 ```
@@ -56,9 +63,23 @@ server {
 
 `try_files $uri $uri/ =404` means: try the file, then the directory, else return 404.
 
+!!! tip "📺 Deep dive — *NGINX for Beginners* (KodeKloud, full tutorial)"
+    Want more than the 100-second version? This chaptered walkthrough covers the config model in depth.
+
+    [![NGINX for Beginners — full tutorial](https://img.youtube.com/vi/Hfg7_y0fGTg/hqdefault.jpg){ width="360" }](https://youtu.be/Hfg7_y0fGTg)
+
+    **Chapters:** [config file structure](https://youtu.be/Hfg7_y0fGTg?t=1382) · [server blocks & virtual hosts](https://youtu.be/Hfg7_y0fGTg?t=1789) · [directory structure](https://youtu.be/Hfg7_y0fGTg?t=2112) · [essential commands](https://youtu.be/Hfg7_y0fGTg?t=2519) · [install on Ubuntu](https://youtu.be/Hfg7_y0fGTg?t=3279) · [reverse proxy & load balancing](https://youtu.be/Hfg7_y0fGTg?t=869)
+
 ### 3. TLS & self-signed certificates — the padlock
 
 **TLS** (Transport Layer Security; the successor to **SSL**) encrypts the connection so nobody between client and server can read or tamper with it. When Nginx "terminates TLS," it holds the certificate and does the crypto, handing plain HTTP to your app behind it.
+
+!!! tip "📺 Watch — *SSL, TLS, HTTPS Explained* (ByteByteGo, ~6 min)"
+    A crisp animated explainer of the handshake below. Watch it, then read the step-by-step walk-through.
+
+    [![SSL, TLS, HTTPS Explained](https://img.youtube.com/vi/j9QmMEWmcfo/hqdefault.jpg){ width="360" }](https://youtu.be/j9QmMEWmcfo)
+
+    **Chapters:** [HTTPS](https://youtu.be/j9QmMEWmcfo?t=42) · [TLS](https://youtu.be/j9QmMEWmcfo?t=66)
 
 **How a secure connection is established** — a simple walk-through:
 
@@ -489,4 +510,7 @@ pkill -f "api.py"     # stop all three backends
 - [Cloudflare — What is a reverse proxy?](https://www.cloudflare.com/learning/cdn/glossary/reverse-proxy/)
 - [Cloudflare — How does TLS work?](https://www.cloudflare.com/learning/ssl/what-is-ssl/)
 - [What happens when you type a URL](https://github.com/alex/what-happens-when) — the whole networking week, end to end
+- 📺 [NGINX Explained in 100 Seconds](https://youtu.be/JKxlsvZXG7c) (Fireship) — the fastest possible intro
+- 📺 [NGINX for Beginners — full tutorial](https://youtu.be/Hfg7_y0fGTg) (KodeKloud, ~1h25) — architecture, config, server blocks, install, even UFW
+- 📺 [SSL, TLS, HTTPS Explained](https://youtu.be/j9QmMEWmcfo) (ByteByteGo, ~6 min) — the handshake, animated
 - `man nginx`, `man openssl`

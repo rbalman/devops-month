@@ -272,4 +272,5 @@ curl http://localhost:8000
 - [Dockerfile reference](https://docs.docker.com/engine/reference/builder/) — every instruction, precisely defined
 - [Dockerfile best practices](https://docs.docker.com/develop/develop-images/dockerfile_best-practices/)
 - [Docker multi-stage builds](https://docs.docker.com/build/building/multi-stage/)
+- 📺 [Docker Crash Course — Dockerfile & Build Image](https://youtu.be/pg19Z8LL06w?t=2949) (TechWorld with Nana) — jumps straight to writing a Dockerfile and building the image
 - [Semantic Versioning](https://semver.org/) — what `MAJOR.MINOR.PATCH` actually promises

@@ -42,6 +42,11 @@ www.example.com.
 
 Whoever controls a level runs its **nameservers** and **delegates** the level below: root points to `.com`'s servers, `.com` points to `example.com`'s servers, and you run the records inside `example.com`.
 
+!!! tip "📺 Watch — *How a DNS Server Works* (PowerCert, ~6 min)"
+    A 6-minute animated tour of the resolver → root → TLD → authoritative chain you just read about.
+
+    [![How a DNS Server Works](https://img.youtube.com/vi/mpQZVYPuDGU/hqdefault.jpg){ width="360" }](https://youtu.be/mpQZVYPuDGU)
+
 ### 2. How a name resolves — the flow
 
 Your machine doesn't walk the tree itself. It hands the question to a **recursive resolver** (your ISP's, or a public one like `8.8.8.8`), which does the legwork and caches the answer:
@@ -318,6 +323,7 @@ With verbose on you'll watch the SMTP `RCPT TO:<receiver@fundevops.com>` land; h
 
 **Watch**
 
+- [How a DNS Server Works](https://youtu.be/mpQZVYPuDGU) (PowerCert, ~6 min) — the resolver → root → TLD → authoritative chain, animated
 - [Everything You Need to Know About DNS — Crash Course: System Design #4](https://www.youtube.com/watch?v=27r4Bzuj5NQ) — a fast, visual tour of how DNS resolves
 - [How DNS works — a friendly comic](https://howdns.works/) — the resolution walk, illustrated
 

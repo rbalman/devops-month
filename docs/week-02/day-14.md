@@ -18,6 +18,11 @@
 
 A real app is several containers — an app, a database, a cache, a proxy. Wiring them by hand with many `docker run` flags is error-prone and impossible to reproduce. **Docker Compose** declares the entire stack in one YAML file you commit to git; `docker compose up` reconciles reality to match it.
 
+!!! tip "📺 Watch — *Docker Compose Tutorial* (Programming with Mosh, ~33 min)"
+    A gentle, end-to-end walkthrough of writing a `docker-compose.yml` and bringing a multi-service stack up and down — perfect companion to today's lab.
+
+    [![Docker Compose Tutorial](https://img.youtube.com/vi/HG6yIjZapSA/hqdefault.jpg){ width="360" }](https://youtu.be/HG6yIjZapSA)
+
 ### 2. The Compose file
 
 ```yaml
@@ -311,4 +316,5 @@ docker compose down                 # tear it all down (add -v to also drop the 
 - [Compose file reference](https://docs.docker.com/compose/compose-file/) — every key, precisely defined
 - [Docker networking overview](https://docs.docker.com/network/) — bridge, host, and user-defined networks
 - [Manage data in Docker](https://docs.docker.com/storage/) — volumes, bind mounts, and tmpfs compared
+- 📺 [Docker Compose Tutorial](https://youtu.be/HG6yIjZapSA) (Programming with Mosh, ~33 min) — writing and running a multi-service stack
 - [The Twelve-Factor App](https://12factor.net/) — the design principles behind container-ready services

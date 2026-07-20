@@ -76,6 +76,13 @@ The server can't tell your keystrokes from a real browser or mail client — it 
 
 Anything you do on a server now, you do over **SSH** (Secure Shell): a single encrypted, authenticated channel that carries interactive shells, one-off commands, and file copies.
 
+!!! tip "📺 Watch — *SSH Tutorial: Crash Course* (Marco Codes, ~30 min)"
+    A hands-on tour of everything in this section — watch it before the lab, then jump back to any part you're stuck on.
+
+    [![SSH Tutorial: Crash Course](https://img.youtube.com/vi/UnM4QAumuCQ/hqdefault.jpg){ width="360" }](https://youtu.be/UnM4QAumuCQ)
+
+    **Chapters:** [SSH overview](https://youtu.be/UnM4QAumuCQ?t=12) · [ssh-keygen](https://youtu.be/UnM4QAumuCQ?t=411) · [authorized_keys](https://youtu.be/UnM4QAumuCQ?t=635) · [scp](https://youtu.be/UnM4QAumuCQ?t=685) · [ssh-agent](https://youtu.be/UnM4QAumuCQ?t=807) · [~/.ssh/config](https://youtu.be/UnM4QAumuCQ?t=959) · [agent forwarding](https://youtu.be/UnM4QAumuCQ?t=1414) · [SSH tunnels](https://youtu.be/UnM4QAumuCQ?t=1512)
+
 ```bash
 ssh user@host            # log in (encrypted interactive shell)
 ssh user@host 'uptime'   # run one command and return
@@ -172,6 +179,13 @@ Only the bastion needs a public address and an open port; every server behind it
 ### 5. Firewalls — default deny with `ufw`
 
 Hardening SSH secures one door; a **firewall** decides which doors exist at all. Ubuntu's **`ufw`** (Uncomplicated Firewall) is a friendly front-end to the kernel's **netfilter**. It's **stateful** — replies to connections you started are allowed back automatically, so you only write rules for *new inbound* traffic. The golden rule: **default deny inbound, allow outbound, then open only the ports you serve.**
+
+!!! tip "📺 Watch — *Linux Firewall Tutorial: Configure Rules with UFW* (Akamai, ~13 min)"
+    A start-to-finish UFW walkthrough that mirrors this section.
+
+    [![Linux Firewall Tutorial with UFW](https://img.youtube.com/vi/XtRXm4FFK7Q/hqdefault.jpg){ width="360" }](https://youtu.be/XtRXm4FFK7Q)
+
+    **Chapters:** [installing UFW](https://youtu.be/XtRXm4FFK7Q?t=120) · [default rules](https://youtu.be/XtRXm4FFK7Q?t=180) · [allow SSH **first**](https://youtu.be/XtRXm4FFK7Q?t=290) · [enable UFW](https://youtu.be/XtRXm4FFK7Q?t=350) · [allow specific IPs](https://youtu.be/XtRXm4FFK7Q?t=465) · [deleting rules](https://youtu.be/XtRXm4FFK7Q?t=584)
 
 ```bash
 sudo ufw allow 22/tcp             # ALLOW SSH FIRST — by port+protocol (or: ufw allow OpenSSH, see `ufw app list`)
@@ -329,4 +343,6 @@ curl -sI https://google.com | head -1 # confirm the box can still reach OUT (def
 - [How SSH works — Cloudflare](https://www.cloudflare.com/learning/access-management/what-is-ssh/)
 - [SSH tunneling explained](https://www.ssh.com/academy/ssh/tunneling-example) — local, remote, and dynamic forwards
 - [DigitalOcean — SSH essentials](https://www.digitalocean.com/community/tutorials/ssh-essentials-working-with-ssh-servers-clients-and-keys)
+- 📺 [SSH Tutorial: Crash Course](https://youtu.be/UnM4QAumuCQ) (Marco Codes, ~30 min) — keys, agent, config, tunnels, and multiple Git keys, hands-on
+- 📺 [Linux Firewall Tutorial with UFW](https://youtu.be/XtRXm4FFK7Q) (Akamai, ~13 min) — the `ufw` workflow end to end
 - `man ssh`, `man ssh_config`, `man sshd_config`, `man ufw`, `man rsync`

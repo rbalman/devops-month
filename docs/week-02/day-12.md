@@ -33,6 +33,13 @@ A **Virtual Machine** virtualizes *hardware*: each VM ships a full guest OS (its
 
 The isolation isn't magic — it's two Linux kernel features: **namespaces** (a container gets its own view of processes, network, mounts, hostname) and **cgroups** (limits on CPU, memory, I/O). Docker just makes them easy to use.
 
+!!! tip "📺 Watch — *Docker Crash Course for Absolute Beginners* (TechWorld with Nana)"
+    The companion video for today (and the start of tomorrow) — a clear walkthrough from the ground up.
+
+    [![Docker Crash Course for Absolute Beginners](https://img.youtube.com/vi/pg19Z8LL06w/hqdefault.jpg){ width="360" }](https://youtu.be/pg19Z8LL06w)
+
+    **Chapters:** [what is Docker](https://youtu.be/pg19Z8LL06w?t=174) · [VM vs Docker](https://youtu.be/pg19Z8LL06w?t=698) · [install](https://youtu.be/pg19Z8LL06w?t=1039) · [images vs containers](https://youtu.be/pg19Z8LL06w?t=1296) · [registries](https://youtu.be/pg19Z8LL06w?t=1592) · [pull & run](https://youtu.be/pg19Z8LL06w?t=1922) · [port binding](https://youtu.be/pg19Z8LL06w?t=2346) · [start & stop](https://youtu.be/pg19Z8LL06w?t=2570)
+
 ### 2. Docker's architecture
 
 The `docker` command is only a **client**. It sends requests to the **daemon** (`dockerd`), a background service that does the real work — building images, running containers, pulling from registries.
@@ -239,4 +246,5 @@ That name-based discovery is the whole reason multi-container apps are easy — 
 - [Docker overview](https://docs.docker.com/get-started/overview/) — the mental model, start to finish
 - [Play with Docker](https://labs.play-with-docker.com/) — a free, throwaway Docker playground in the browser
 - [Docker Hub](https://hub.docker.com) — browse official and community images
+- 📺 [Docker Crash Course for Absolute Beginners](https://youtu.be/pg19Z8LL06w) (TechWorld with Nana, ~1h) — the whole Docker workflow, hands-on
 - `docker <command> --help` — every subcommand is self-documenting

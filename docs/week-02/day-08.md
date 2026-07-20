@@ -28,6 +28,11 @@ You don't send bytes straight onto a wire — each layer wraps the one above it 
 
 When you `curl https://example.com`, your request travels **down** this stack on your machine and **up** it on the server. Almost every command today lives on one of these layers — knowing which one tells you where to look when something breaks.
 
+!!! tip "📺 Watch — *OSI and TCP/IP Models — Best Explanation* (_Drunk Engineer_, ~19 min)"
+    A clear visual walk through both models and how each layer maps to the real protocols you'll use all week.
+
+    [![OSI and TCP/IP Models — Best Explanation](https://img.youtube.com/vi/3b_TAYtzuho/hqdefault.jpg){ width="360" }](https://youtu.be/3b_TAYtzuho)
+
 ### 2. IPv4 addresses
 
 An **IPv4 address** is 32 bits, written as four **octets** (0–255) separated by dots:
@@ -80,6 +85,11 @@ Classes were **wasteful** (a class A handed out 16 million addresses to one org)
 !!! tip "Higher prefix = smaller network"
     `/24` is smaller than `/16`. More network bits fixed → fewer bits left for hosts. `/32` is a single machine — you'll see it constantly in firewall and routing rules.
 
+!!! tip "📺 Watch — *What is Subnetting? — Subnetting Mastery, Part 1 of 7* (Practical Networking, ~9 min)"
+    The clearest subnetting series on YouTube — Part 1 builds the intuition behind CIDR and subnet math before you do it by hand in the lab.
+
+    [![What is Subnetting? — Subnetting Mastery, Part 1](https://img.youtube.com/vi/BWZ-MHIhqjM/hqdefault.jpg){ width="360" }](https://youtu.be/BWZ-MHIhqjM)
+
 ### 5. Private networks & NAT
 
 Some ranges are reserved as **private** — routers never forward them across the public internet, so everyone can reuse them at home and inside data centers (**RFC 1918**):
@@ -99,6 +109,11 @@ Your VM 192.168.56.10  ──▶  Router (NAT)  ──▶  Internet
 ```
 
 `127.0.0.1` (**localhost**) is special — it always means *this machine* and never leaves it.
+
+!!! tip "📺 Watch — *Public vs Private IP Address* (PowerCert, ~7 min)"
+    A quick animated explainer of the private RFC 1918 ranges and how NAT gets a private machine onto the public internet.
+
+    [![Public vs Private IP Address](https://img.youtube.com/vi/po8ZFG0Xc4Q/hqdefault.jpg){ width="360" }](https://youtu.be/po8ZFG0Xc4Q)
 
 ### 6. Ports & sockets
 
@@ -136,6 +151,11 @@ Client ──  SYN  ──▶ Server     "let's talk?"
 Client ◀ SYN-ACK ── Server     "sure, you too?"
 Client ──  ACK  ──▶ Server     "yep — connected"
 ```
+
+!!! tip "📺 Watch — *TCP vs UDP Comparison* (PowerCert, ~5 min)"
+    The two transport protocols side by side, animated — reliability vs speed, and when each wins.
+
+    [![TCP vs UDP Comparison](https://img.youtube.com/vi/uwoD5YsGACg/hqdefault.jpg){ width="360" }](https://youtu.be/uwoD5YsGACg)
 
 ---
 
@@ -334,6 +354,15 @@ You've got the working model. These are the next rungs — read the linked resou
 ---
 
 ## Further Reading
+
+**Watch**
+
+- [OSI and TCP/IP Models — Best Explanation](https://youtu.be/3b_TAYtzuho) (_Drunk Engineer_) — both models and how the layers map to real protocols
+- [What is Subnetting? — Subnetting Mastery (7-part series)](https://youtu.be/BWZ-MHIhqjM) (Practical Networking) — go from zero to fluent at subnet math
+- [Public vs Private IP Address](https://youtu.be/po8ZFG0Xc4Q) (PowerCert) — RFC 1918 ranges and NAT
+- [TCP vs UDP Comparison](https://youtu.be/uwoD5YsGACg) (PowerCert) — reliability vs speed, animated
+
+**Reference**
 
 - [Cloudflare Learning — What is TCP/IP?](https://www.cloudflare.com/learning/ddos/glossary/tcp-ip/) — clear, illustrated fundamentals
 - [Julia Evans — networking zines](https://wizardzines.com/) — the friendliest explanations of ports, packets, and DNS anywhere
