@@ -355,7 +355,7 @@ Real deployments ship files, not one-liners. First, **download the site archive 
 
 ```bash
 cd ~/fleet
-curl -L -o site.zip https://github.com/user-attachments/files/30183950/site.zip
+curl -L -o site.zip https://github.com/user-attachments/files/30199374/site.zip
 ```
 
 !!! note
@@ -401,15 +401,16 @@ cat > deploy-site.yml << 'EOF'
         state: started
         enabled: true
 
-    - name: Reboot managed node
-      ansible.builtin.reboot:
-        reboot_timeout: 600
+    - name: Restart nginx to pick up the new site
+      ansible.builtin.service:
+        name: nginx
+        state: restarted
 EOF
 
 ansible-playbook deploy-site.yml
 ```
 
-Verify the deployed site (give the nodes a moment to come back from the reboot):
+Verify the deployed site:
 
 ```bash
 curl http://192.168.56.30       # → the site from site.zip
@@ -417,7 +418,7 @@ curl http://192.168.56.31
 ```
 
 !!! note "Not every play is idempotent"
-    Unlike 6a, this play ends with a **reboot** — that task runs *every* time, so re-running `deploy-site.yml` always reports `changed`. Idempotency is a property of the modules you choose, not something you get for free.
+    Unlike 6a, this play ends with a **restart** (`state: restarted`) — that task runs *every* time, so re-running `deploy-site.yml` always reports `changed`. Idempotency is a property of the modules you choose, not something you get for free. (A more idempotent pattern is to trigger a restart only when the site actually changes, using a **handler** — you'll meet those tomorrow.)
 
 ### Step 7 — Stop or keep the fleet
 
@@ -446,9 +447,7 @@ Deeper references for when you need them:
 
 ## Assignment
 
-1. **Extend the fleet.** Add a third managed node `web3` (`192.168.56.32`) to the Vagrantfile and inventory, authorize the control node's key on it (Step 3), then re-run `site.yml`. Confirm only `web3` reports **changed** while `web1`/`web2` are **ok** — and explain in one line *why*.
-2. **A second play.** Add a play targeting a new `[db]` group (one node) that installs `postgresql` and ensures the service is running. Show the full `ansible-playbook` output and both `curl`/`systemctl status` proofs.
-3. **Read the docs.** Use `ansible-doc` to find a module that creates a Linux user, then add a task that creates a `deploy` user on the web group. Cite which module you used and the one option you needed from its docs.
+Write a playbook that installs `htop`, `tree`, and `jq` on the `web` group — then use a single ad-hoc command to print each tool's version from every node at once.
 
 ---
 
