@@ -1,355 +1,264 @@
-# Day 6 · Terraform II — State, Variables & Modules
+# Day 6 · Terraform I — Providers, Resources & the Core Workflow
+
+> For three days you built AWS resources by hand — clicking consoles, copying IDs, running `aws` commands, and carefully tearing down. It worked, but it's not **reproducible**: nobody can recreate your exact stack, and "teardown" was a manual checklist you could forget. **Terraform** fixes that. You *declare* the infrastructure you want in code; Terraform figures out the API calls to make reality match, and `terraform destroy` removes every last piece. Today you'll rebuild Day 3's EC2 + security group — but this time in code you can apply, share, and destroy with one command.
+
+!!! warning "Still real AWS resources"
+    Terraform creates the same billable resources you made by hand. The upside: `terraform destroy` is a *reliable* teardown — no more hunting for stray load balancers. Always `destroy` at the end of a lab.
 
 ## Learning Objectives
 
-- Understand Terraform state in depth and how to manage it
-- Use input variables, local values, and output values effectively
-- Create and use a reusable Terraform module
+- Explain **Infrastructure as Code** and how Terraform differs from Ansible
+- Configure a **provider** and declare **resources**
+- Understand **state** — how Terraform tracks what it manages
+- Run the core workflow: **`init` → `plan` → `apply` → `destroy`**
+- Parameterize with **variables** and `.tfvars`, expose **outputs**, simplify with **locals**
+- Query existing infrastructure with **data sources**
+
+---
+
+## Prerequisites
+
+- Day 3 complete: an AWS account, an IAM user, and the **AWS CLI configured** (Terraform reuses those credentials)
+- A key pair name you can reference (or create one in the lab)
 
 ---
 
 ## Theory · ~20 min
 
-### Terraform State
+### 1. Infrastructure as Code
 
-The state file (`terraform.tfstate`) is Terraform's database of the real-world resources it manages. It stores:
-- What resources exist
-- Their attributes (IDs, IPs, ARNs)
-- Dependencies between resources
+Terraform is **declarative**: you describe the *desired end state*, not the steps. Contrast with Ansible, which is *procedural* (a list of tasks). They're complementary — **Terraform provisions** infrastructure (VMs, networks, load balancers); **Ansible configures** what runs inside it. Terraform's superpower is that it keeps a record (**state**) of everything it made, so it can update or delete precisely.
 
-**What happens without state**: Terraform can't know what it previously created, so it would try to create everything again.
+!!! tip "📺 Watch — *Terraform in 100 Seconds* (Fireship)"
+    What Terraform is and the declarative IaC model, in under two minutes.
 
-**Remote state** is the production pattern. Instead of a local file, state lives in a shared backend (S3, Terraform Cloud, GCS). This enables:
-- Team collaboration (no "who has the state file?")
-- State locking (prevent two people applying at once)
-- Versioning and backup
+    [![Terraform in 100 Seconds](https://img.youtube.com/vi/tomUWcQ0P3k/hqdefault.jpg){ width="360" }](https://youtu.be/tomUWcQ0P3k)
+
+### 2. Providers
+
+A **provider** is a plugin that teaches Terraform an API — `aws`, `google`, `azurerm`, `kubernetes`, hundreds more. You declare it and Terraform downloads it on `init`:
 
 ```hcl
-# Remote state in S3 (Week 4 topic, preview here)
 terraform {
-  backend "s3" {
-    bucket = "my-terraform-state"
-    key    = "prod/terraform.tfstate"
-    region = "us-east-1"
-  }
-}
-```
-
-### Variable Types
-
-```hcl
-variable "instance_count" {
-  type        = number
-  default     = 1
-  description = "Number of instances to create"
-}
-
-variable "tags" {
-  type = map(string)
-  default = {
-    Environment = "dev"
-    Owner       = "balman"
+  required_providers {
+    aws = { source = "hashicorp/aws", version = "~> 5.0" }
   }
 }
 
-variable "allowed_ports" {
-  type    = list(number)
-  default = [80, 443, 22]
+provider "aws" {
+  region = "us-east-1"
 }
 ```
 
-### Locals
+### 3. Resources
 
-Locals are intermediate values — computed from variables or resource attributes:
+A **resource** is one piece of infrastructure. `type` + `name` gives it an address (`aws_instance.web`):
 
 ```hcl
+resource "aws_instance" "web" {
+  ami           = "ami-0abcd1234"
+  instance_type = "t3.micro"
+  tags = { Name = "golive-web" }
+}
+```
+
+### 4. State
+
+Terraform records what it created in a **state file** (`terraform.tfstate`). On the next `apply`, it diffs your code against state against reality, and does the minimum to reconcile. **State is sensitive** (it can hold secrets) and must not be hand-edited. (Tomorrow: storing it remotely so a team can share it.)
+
+### 5. The core workflow
+
+| Command | What it does |
+|---|---|
+| `terraform init` | Download providers, prepare the working dir |
+| `terraform fmt` / `validate` | Format and syntax-check |
+| `terraform plan` | Preview the changes (nothing applied) |
+| `terraform apply` | Make reality match — after you confirm |
+| `terraform destroy` | Delete everything in state |
+
+**Always read the plan** before approving. `+` creates, `~` updates, `-` destroys.
+
+### 6. Variables, outputs, locals
+
+```hcl
+variable "instance_type" {
+  type    = string
+  default = "t3.micro"
+}
+
 locals {
-  env        = var.environment
-  name_prefix = "${var.project}-${local.env}"
+  project = "golive"            # computed/shared values
 }
 
-resource "docker_container" "app" {
-  name = "${local.name_prefix}-app"
+output "public_ip" {
+  value = aws_instance.web.public_ip   # printed after apply
 }
 ```
 
-### Modules
+Set variables via defaults, a `terraform.tfvars` file, `-var`, or `TF_VAR_` env vars.
 
-A module is a directory of `.tf` files that you call from another config. It's the primary reuse mechanism in Terraform.
+### 7. Data sources
+
+A **data source** *reads* something that already exists rather than creating it — e.g. look up the latest Ubuntu AMI instead of hard-coding an ID:
 
 ```hcl
-# Calling a module
-module "web_server" {
-  source = "./modules/nginx"    # local path, or registry URL
-
-  port         = 8080
-  container_name = "web"
+data "aws_ami" "ubuntu" {
+  most_recent = true
+  owners      = ["099720109477"]
+  filter {
+    name   = "name"
+    values = ["ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-amd64-server-*"]
+  }
 }
-
-# Using module outputs
-output "server_url" {
-  value = module.web_server.url
-}
+# reference: data.aws_ami.ubuntu.id
 ```
 
 ---
 
 ## Lab · ~50 min
 
-### Step 1 — Explore state commands
+Run on your host (Terraform uses your configured AWS CLI credentials).
+
+### Step 1 — Install Terraform
 
 ```bash
-cd ~/terraform-labs/docker-demo
-
-# Apply something first if not already done
-terraform apply
-
-# List all resources in state
-terraform state list
-
-# Show details of a specific resource
-terraform state show docker_container.nginx
-
-# Move a resource to a different name (renaming without recreating)
-# terraform state mv docker_container.nginx docker_container.web
-
-# Remove a resource from state (without destroying it)
-# terraform state rm docker_container.nginx
-
-# Import an existing resource into state
-docker run -d --name manual-nginx nginx:alpine
-CONTAINER_ID=$(docker inspect manual-nginx --format '{{.Id}}')
-# terraform import docker_container.nginx $CONTAINER_ID
-# (Not running this to keep things simple)
-
-docker rm -f manual-nginx
+wget -O- https://apt.releases.hashicorp.com/gpg | sudo gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg
+echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/hashicorp.list
+sudo apt update && sudo apt install -y terraform
+terraform -version
 ```
 
-### Step 2 — Variables file (terraform.tfvars)
+### Step 2 — Write the configuration
 
 ```bash
-mkdir -p ~/terraform-labs/variables-demo
-cd ~/terraform-labs/variables-demo
-
-cat > variables.tf << 'EOF'
-variable "project_name" {
-  type        = string
-  description = "Project name prefix for all resources"
-}
-
-variable "environment" {
-  type        = string
-  description = "Deployment environment"
-  default     = "dev"
-  validation {
-    condition     = contains(["dev", "staging", "prod"], var.environment)
-    error_message = "Environment must be dev, staging, or prod."
-  }
-}
-
-variable "app_port" {
-  type        = number
-  default     = 8080
-}
-
-variable "replicas" {
-  type        = number
-  default     = 1
-}
-EOF
-
-cat > locals.tf << 'EOF'
-locals {
-  name_prefix = "${var.project_name}-${var.environment}"
-  common_labels = {
-    project     = var.project_name
-    environment = var.environment
-    managed_by  = "terraform"
-  }
-}
-EOF
+mkdir -p ~/tf-golive && cd ~/tf-golive
 
 cat > main.tf << 'EOF'
 terraform {
   required_providers {
-    docker = {
-      source  = "kreuzwerker/docker"
-      version = "~> 3.0"
-    }
+    aws = { source = "hashicorp/aws", version = "~> 5.0" }
   }
 }
 
-provider "docker" {}
-
-resource "docker_image" "app" {
-  name         = "nginx:alpine"
-  keep_locally = true
+provider "aws" {
+  region = var.region
 }
 
-resource "docker_container" "app" {
-  count = var.replicas
-  image = docker_image.app.image_id
-  name  = "${local.name_prefix}-app-${count.index}"
-
-  ports {
-    internal = 80
-    external = var.app_port + count.index
-  }
-
-  dynamic "labels" {
-    for_each = local.common_labels
-    content {
-      label = labels.key
-      value = labels.value
-    }
+data "aws_ami" "ubuntu" {
+  most_recent = true
+  owners      = ["099720109477"]
+  filter {
+    name   = "name"
+    values = ["ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-amd64-server-*"]
   }
 }
+
+resource "aws_security_group" "web" {
+  name        = "${local.project}-sg"
+  description = "HTTP + SSH"
+  ingress {
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+  ingress {
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["${var.my_ip}/32"]
+  }
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+resource "aws_instance" "web" {
+  ami                    = data.aws_ami.ubuntu.id
+  instance_type          = var.instance_type
+  vpc_security_group_ids = [aws_security_group.web.id]
+  user_data              = "#!/bin/bash\napt-get update -q && apt-get install -y nginx\necho '<h1>Provisioned by Terraform</h1>' > /var/www/html/index.html"
+  tags = { Name = "${local.project}-web" }
+}
+EOF
+
+cat > variables.tf << 'EOF'
+variable "region"        { default = "us-east-1" }
+variable "instance_type" { default = "t3.micro" }
+variable "my_ip"         { description = "Your public IP for SSH" }
+locals { project = "golive" }
 EOF
 
 cat > outputs.tf << 'EOF'
-output "container_names" {
-  value = docker_container.app[*].name
-}
-
-output "access_urls" {
-  value = [for c in docker_container.app : "http://localhost:${c.ports[0].external}"]
-}
+output "public_ip" { value = aws_instance.web.public_ip }
+output "ami_used"  { value = data.aws_ami.ubuntu.id }
 EOF
-
-# Create a tfvars file
-cat > terraform.tfvars << 'EOF'
-project_name = "devops-month"
-environment  = "dev"
-app_port     = 8080
-replicas     = 2
-EOF
-
-terraform init
-terraform plan
-terraform apply
-
-# See the outputs
-terraform output
-curl http://localhost:8080
-curl http://localhost:8081
 ```
 
-### Step 3 — Build a reusable module
+### Step 3 — The core workflow
 
 ```bash
-mkdir -p ~/terraform-labs/modules-demo/modules/nginx-container
-
-# Module files
-cat > ~/terraform-labs/modules-demo/modules/nginx-container/variables.tf << 'EOF'
-variable "name" {
-  type = string
-}
-
-variable "port" {
-  type    = number
-  default = 80
-}
-
-variable "image" {
-  type    = string
-  default = "nginx:alpine"
-}
-EOF
-
-cat > ~/terraform-labs/modules-demo/modules/nginx-container/main.tf << 'EOF'
-terraform {
-  required_providers {
-    docker = {
-      source  = "kreuzwerker/docker"
-      version = "~> 3.0"
-    }
-  }
-}
-
-resource "docker_image" "this" {
-  name         = var.image
-  keep_locally = true
-}
-
-resource "docker_container" "this" {
-  image = docker_image.this.image_id
-  name  = var.name
-
-  ports {
-    internal = 80
-    external = var.port
-  }
-}
-EOF
-
-cat > ~/terraform-labs/modules-demo/modules/nginx-container/outputs.tf << 'EOF'
-output "container_name" {
-  value = docker_container.this.name
-}
-
-output "url" {
-  value = "http://localhost:${var.port}"
-}
-EOF
-
-# Root config that calls the module
-cat > ~/terraform-labs/modules-demo/main.tf << 'EOF'
-terraform {
-  required_providers {
-    docker = {
-      source  = "kreuzwerker/docker"
-      version = "~> 3.0"
-    }
-  }
-}
-
-provider "docker" {}
-
-module "frontend" {
-  source = "./modules/nginx-container"
-  name   = "frontend"
-  port   = 8080
-}
-
-module "backend_proxy" {
-  source = "./modules/nginx-container"
-  name   = "backend-proxy"
-  port   = 8081
-  image  = "nginx:latest"
-}
-
-output "frontend_url" {
-  value = module.frontend.url
-}
-
-output "backend_url" {
-  value = module.backend_proxy.url
-}
-EOF
-
-cd ~/terraform-labs/modules-demo
-terraform init
-terraform apply
-
-terraform output
-
-# Clean up everything
-terraform destroy
+terraform init                 # downloads the AWS provider
+terraform fmt && terraform validate
+terraform plan -var "my_ip=$(curl -s https://checkip.amazonaws.com)"
+terraform apply -var "my_ip=$(curl -s https://checkip.amazonaws.com)"   # type 'yes'
 ```
+
+After apply, Terraform prints your outputs:
+
+```bash
+terraform output public_ip
+curl http://$(terraform output -raw public_ip)     # → Provisioned by Terraform
+```
+
+### Step 4 — Inspect state, then change it
+
+```bash
+terraform state list           # aws_instance.web, aws_security_group.web, ...
+```
+
+Change `instance_type` to `t3.small` in `variables.tf`, then `plan` — see the `~`/`-/+` and note Terraform *replaces* the instance. Revert it.
+
+### Step 5 — 🔻 Teardown (the easy way)
+
+```bash
+terraform destroy -var "my_ip=$(curl -s https://checkip.amazonaws.com)"    # type 'yes'
+```
+
+One command removes the instance **and** the security group. Confirm the console is empty. *This* is why IaC beats the manual checklist.
+
+---
+
+## Advanced Topics
+
+- **`terraform.tfvars`** — drop variables in this file and Terraform loads them automatically (no `-var` flags).
+- **Dependency graph** — Terraform infers order from references (`aws_instance.web` needs `aws_security_group.web`), but `depends_on` forces it when needed.
+- **`terraform import`** — bring an existing hand-made resource under Terraform's management.
+- **Provisioners** — run scripts on a resource after creation; treat as a last resort (prefer user-data or Ansible).
 
 ---
 
 ## Assignment
 
-1. What is the difference between `terraform.tfvars` and environment variables for providing variable values?
-2. What happens if two team members run `terraform apply` at the same time against the same state file? How does remote state with locking solve this?
-3. Extend your module to accept a `healthcheck_path` variable and add a label to the container with its value.
-4. What is the `count` meta-argument? What is `for_each` and when would you use it instead of `count`?
+1. **Full `.tfvars`.** Move all variables (region, instance_type, my_ip) into `terraform.tfvars`, remove the `-var` flags, and re-run the workflow. Submit `plan` output showing it picked them up.
+2. **Two instances, one output.** Add a second instance and an output that lists **both** public IPs (hint: a list). Apply, curl both, destroy.
+3. **Ansible + Terraform.** After `apply`, feed the output IP into your Week-3 Ansible inventory and run your `webserver` role against the Terraform-provisioned box. Explain in two sentences which tool did what.
 
 ---
 
 ## Further Reading
 
-- [Terraform state documentation](https://developer.hashicorp.com/terraform/language/state)
-- [Terraform modules best practices](https://developer.hashicorp.com/terraform/language/modules/develop)
-- [Terraform registry — public modules](https://registry.terraform.io/browse/modules)
+**Watch**
+
+- 📺 [Terraform in 100 Seconds](https://youtu.be/tomUWcQ0P3k) (Fireship) — the fastest intro
+- 📺 [Terraform explained in 10 mins](https://youtu.be/h6rkauDhDUM) — a chaptered walkthrough of the core workflow
+
+**Reference**
+
+- [Terraform — Get Started (AWS)](https://developer.hashicorp.com/terraform/tutorials/aws-get-started)
+- [Terraform — Resources](https://developer.hashicorp.com/terraform/language/resources) · [Data sources](https://developer.hashicorp.com/terraform/language/data-sources)
+- [Terraform — State](https://developer.hashicorp.com/terraform/language/state)
+- [AWS provider registry](https://registry.terraform.io/providers/hashicorp/aws/latest/docs)

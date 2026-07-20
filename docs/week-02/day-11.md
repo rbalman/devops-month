@@ -29,7 +29,7 @@ A **web server** listens on a port (80 for HTTP, 443 for HTTPS) and, for each re
 **Nginx** ("engine-x") does all four and is the most-deployed web server in the world. Its event-driven model handles thousands of connections cheaply — which is why it usually sits at the front of production stacks. Every reply carries a **status code**: **2xx** success, **3xx** redirect, **4xx** the client erred (404 not found), **5xx** the server erred (502 bad gateway) — you'll read these in the logs later today.
 
 !!! tip "📺 Watch — *NGINX Explained in 100 Seconds* (Fireship, ~2 min)"
-    A 2-minute primer on what Nginx is and why it sits at the front of the stack. Watch this first, then the deep dive in §2.
+    A 2-minute primer on what Nginx is and why it sits at the front of the stack. Watch this first, then the deep dive in Section 2.
 
     [![NGINX Explained in 100 Seconds](https://img.youtube.com/vi/JKxlsvZXG7c/hqdefault.jpg){ width="360" }](https://youtu.be/JKxlsvZXG7c)
 

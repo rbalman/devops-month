@@ -196,7 +196,7 @@ If `ping 8.8.8.8` works but `ping google.com` doesn't, the network is fine but *
 We stopped at the standard `rwx` model on purpose. These are the next controls to explore on your own — read the linked resource for each:
 
 - **Special permission bits (setuid, setgid, sticky)** — a fourth permission class for shared dirs and privileged binaries → [Red Hat — SUID, SGID, and sticky bit](https://www.redhat.com/en/blog/suid-sgid-sticky-bit)
-- **umask** — the mask that decides the default permissions of newly created files → [ArchWiki — File permissions § umask](https://wiki.archlinux.org/title/File_permissions_and_attributes#umask)
+- **umask** — the mask that decides the default permissions of newly created files → [ArchWiki — File permissions (umask)](https://wiki.archlinux.org/title/File_permissions_and_attributes#umask)
 - **ACLs (Access Control Lists)** — per-user / per-group permissions beyond the single owner+group → [Red Hat — Introduction to Linux ACLs](https://www.redhat.com/en/blog/linux-access-control-lists) · [`man 5 acl`](https://man7.org/linux/man-pages/man5/acl.5.html)
 - **File attributes (`chattr`/`lsattr`)** — filesystem flags like immutable (`+i`) and append-only (`+a`) that even root must lift → [`man 1 chattr`](https://man7.org/linux/man-pages/man1/chattr.1.html)
 - **sudo & the sudoers file** — controlled privilege escalation, edited safely with `visudo` → [`man 5 sudoers`](https://man7.org/linux/man-pages/man5/sudoers.5.html)

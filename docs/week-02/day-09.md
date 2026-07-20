@@ -330,7 +330,7 @@ With verbose on you'll watch the SMTP `RCPT TO:<receiver@fundevops.com>` land; h
 **Reference**
 
 - [Cloudflare Learning — What is DNS?](https://www.cloudflare.com/learning/dns/what-is-dns/) — records, resolvers, and caching explained
-- [Cloudflare — SPF, DKIM & DMARC](https://www.cloudflare.com/learning/email-security/dmarc-dkim-spf/) — the email-trust records from §5
+- [Cloudflare — SPF, DKIM & DMARC](https://www.cloudflare.com/learning/email-security/dmarc-dkim-spf/) — the email-trust records from Section 5
 
 **Tools**
 

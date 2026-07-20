@@ -73,7 +73,14 @@ nav:
     - Day 5 · Containers I — Docker Basics: week-02/day-12.md
     - Day 6 · Containers II — Building Images & Registries: week-02/day-13.md
     - Day 7 · Containers III — Docker Compose, Volumes & Networks: week-02/day-14.md
-  - Week 3 — IaC & Cloud: week-03/index.md
+  - Week 3 — IaC & Cloud:
+    - Day 1 · Ansible I — Fundamentals & First Playbook: week-03/day-15.md
+    - Day 2 · Ansible II — Variables, Facts, Templates & Roles: week-03/day-16.md
+    - Day 3 · AWS I — Identity & Compute (IAM + EC2): week-03/day-17.md
+    - Day 4 · AWS II — Networking, Load Balancing & Storage: week-03/day-18.md
+    - Day 5 · AWS III — Serverless (Lambda, SQS, SNS, CloudWatch): week-03/day-19.md
+    - Day 6 · Terraform I — Providers, Resources & Core Workflow: week-03/day-20.md
+    - Day 7 · Terraform II — Modules, Backends & Capstone: week-03/day-21.md
   - Week 4 — CI/CD & Monitoring: week-04/index.md
   - Resources: resources.md
 
