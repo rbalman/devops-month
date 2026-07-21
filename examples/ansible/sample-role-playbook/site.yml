@@ -1,0 +1,10 @@
+# The same web-server setup as ../sample-playbook, but packaged into a role.
+# The playbook itself is tiny — it just points the `webserver` role at the
+# `web` group. All the logic lives under roles/webserver/.
+#
+# Run with:  ansible-playbook site.yml
+- name: Configure web servers
+  hosts: web
+  become: true
+  roles:
+    - webserver

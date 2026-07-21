@@ -14,7 +14,7 @@
         state: present
         update_cache: true
       loop: "{{ base_packages }}"
-      when: ansible_os_family == "Debian"
+      when: ansible_facts['os_family'] == "Debian"
 
     - name: Create the deploy user
       ansible.builtin.user:

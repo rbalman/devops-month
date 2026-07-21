@@ -1,0 +1,40 @@
+# Steps to turn a bare host into a working web server — the same workflow as
+# the flat sample, but as a role so it can be reused and shared.
+- name: Install base tooling
+  ansible.builtin.apt:
+    name: "{{ item }}"
+    state: present
+    update_cache: true
+  loop: "{{ base_packages }}"
+  when: ansible_facts['os_family'] == "Debian"
+
+- name: Create the deploy user
+  ansible.builtin.user:
+    name: "{{ deploy_user }}"
+    shell: /bin/bash
+    create_home: true
+
+- name: Install nginx
+  ansible.builtin.apt:
+    name: nginx
+    state: present
+
+- name: Deploy the nginx site config
+  ansible.builtin.template:
+    src: nginx-site.conf.j2
+    dest: /etc/nginx/sites-available/default
+    mode: "0644"
+  notify: Validate nginx config
+
+- name: Render the homepage from a template
+  ansible.builtin.template:
+    src: index.html.j2
+    dest: "{{ web_root }}/index.html"
+    mode: "0644"
+  notify: Restart nginx
+
+- name: Ensure nginx is running and enabled at boot
+  ansible.builtin.service:
+    name: nginx
+    state: started
+    enabled: true

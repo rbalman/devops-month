@@ -1,0 +1,16 @@
+# Handlers run only when a task notifies them, and one handler can notify
+# another — here the site config is validated *before* nginx reloads.
+- name: Validate nginx config
+  ansible.builtin.command: nginx -t
+  changed_when: false
+  notify: Reload nginx
+
+- name: Reload nginx
+  ansible.builtin.service:
+    name: nginx
+    state: reloaded
+
+- name: Restart nginx
+  ansible.builtin.service:
+    name: nginx
+    state: restarted

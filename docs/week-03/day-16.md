@@ -69,35 +69,87 @@ cp -r devops-month/examples/ansible/sample-playbook ~/fleet-sample
 
 Use it as a reference (or a starting point) if you get stuck.
 
+Whichever path you take, once a playbook exists you can **parse-check** it without touching a single host — the fastest way to catch a YAML or structure error:
+
+```bash
+ansible-playbook site.yml --syntax-check
+```
+
 ### 2. Variables — and where they live
 
 A **variable** is a named value you reference with `{{ mustache }}` syntax. They can be defined in many places; the ones you'll use most:
 
-| Location | Scope |
-|---|---|
-| `vars:` in a play | Just that play |
-| `group_vars/<group>.yml` | Every host in a group |
-| `host_vars/<host>.yml` | One host |
-| `--extra-vars` on the CLI | Overrides almost everything |
+When the same variable is set in two places, the one with the **higher precedence number wins**:
+
+| Precedence | Location | Scope |
+|---|---|---|
+| 1 (lowest) | role `defaults/main.yml` | a role's built-in fallback |
+| 2 | `vars:` in a play | just that play |
+| 3 | `group_vars/<group>.yml` | every host in a group |
+| 4 | `host_vars/<host>.yml` | one host |
+| 5 (highest) | `--extra-vars` (`-e`) on the CLI | overrides almost everything |
+
+**a) In a play with `vars:`** — quick and local to that play:
 
 ```yaml
-# group_vars/web.yml — applies to web1 and web2
+- hosts: web
+  vars:
+    site_name: "Operation Go Live"
+    worker_processes: 2
+  tasks:
+    - name: Show a variable
+      ansible.builtin.debug:
+        msg: "Deploying {{ site_name }} with {{ worker_processes }} workers"
+```
+
+**b) In `group_vars/` and `host_vars/`** — the same variable set per group or per host, picked up automatically by name:
+
+```yaml
+# group_vars/web.yml — applies to every host in the 'web' group
 site_name: "Operation Go Live"
 worker_processes: 2
 ```
 
-**Precedence** (simplified): CLI `--extra-vars` > `host_vars` > `group_vars` > play `vars` > role defaults. When two sources set the same variable, the higher one wins.
+```yaml
+# host_vars/web1.yml — applies to web1 only (overrides the group value)
+worker_processes: 4
+```
+
+**c) On the command line with `--extra-vars`** (`-e`) — highest precedence, great for one-off overrides:
+
+```bash
+ansible-playbook site.yml -e "worker_processes=8"
+ansible-playbook site.yml -e '{"site_name": "Staging", "worker_processes": 1}'   # JSON for structured values
+ansible-playbook site.yml -e "@overrides.yml"                                     # or load from a file
+```
+
+**d) Referencing variables** — anywhere Ansible renders Jinja: task args, `msg`, templates, even other variables. Always quote a value that *starts* with `{{ }}`:
+
+```yaml
+- ansible.builtin.debug:
+    msg: "{{ site_name }} runs on {{ ansible_facts['distribution'] }}"   # a fact
+- ansible.builtin.debug:
+    msg: "First package is {{ base_packages[0] }}"                       # list index
+- ansible.builtin.service:
+    name: "{{ service_name }}"                                          # quoted: value starts with {{
+```
+
+!!! note "📖 Reference — special variables"
+    Some variables are set by Ansible itself, not you — `inventory_hostname`, `ansible_facts`, `groups`, `hostvars`, `play_hosts`, and more. The [**Special Variables**](https://docs.ansible.com/projects/ansible/latest/reference_appendices/special_variables.html) appendix is the full list of these built-in "magic" variables and connection settings.
 
 ### 3. Facts — what Ansible knows about a host
 
-Before running tasks, Ansible **gathers facts** — hostname, IP addresses, OS, CPU count, memory, and hundreds more. Reference them like any variable:
+Before running tasks, Ansible **gathers facts** — hostname, IP addresses, OS, CPU count, memory, and hundreds more. Reference them from the `ansible_facts` dictionary:
 
 ```yaml
 - debug:
-    msg: "{{ inventory_hostname }} runs {{ ansible_distribution }} {{ ansible_distribution_version }}"
+    msg: "{{ inventory_hostname }} runs {{ ansible_facts['distribution'] }} {{ ansible_facts['distribution_version'] }}"
 ```
 
-See them all with `ansible web1 -m setup`. Facts let one playbook adapt to each machine (e.g. size a config by `ansible_processor_vcpus`).
+See them all with `ansible web1 -m setup`. Facts let one playbook adapt to each machine (e.g. size a config by `ansible_facts['processor_vcpus']`).
+
+!!! warning "Use `ansible_facts['name']`, not `ansible_name`"
+    You'll see older content reference facts as top-level variables with an `ansible_` prefix (`ansible_distribution`, `ansible_os_family`). That auto-injection is **deprecated** and is being removed in ansible-core 2.24 — always read facts from the **`ansible_facts`** dictionary (`ansible_facts['distribution']`), which has no prefix on the key.
 
 ### 4. Handlers — act only on change
 
@@ -128,20 +180,22 @@ A **conditional** (`when:`) decides whether a task runs; a **loop** runs one tas
 
 ```yaml
 - name: Only on Debian-family hosts
-  ansible.builtin.debug: msg="Debian-family host"
-  when: ansible_os_family == "Debian"
+  ansible.builtin.debug:
+    msg: "Debian-family host"
+  when: ansible_facts['os_family'] == "Debian"
 
 # Combine tests — a list is an implicit AND
 - name: Restart only if service is present and enabled
   ansible.builtin.service: name=nginx state=restarted
   when:
-    - "'nginx' in ansible_facts.packages"
-    - ansible_os_family == "Debian"
+    - "'nginx' in ansible_facts['packages']"
+    - ansible_facts['os_family'] == "Debian"
 
 # OR, negation, and numeric comparison
 - name: Warn on small boxes
-  ansible.builtin.debug: msg="Low memory"
-  when: ansible_memtotal_mb < 1024 or ansible_processor_vcpus == 1
+  ansible.builtin.debug:
+    msg: "Low memory"
+  when: ansible_facts['memtotal_mb'] < 1024 or ansible_facts['processor_vcpus'] == 1
 ```
 
 **`register` + `when`** — capture a task's result and branch on it:
@@ -153,7 +207,8 @@ A **conditional** (`when:`) decides whether a task runs; a **loop** runs one tas
   ignore_errors: true          # don't abort the play on non-zero exit
 
 - name: Deploy only when missing
-  ansible.builtin.debug: msg="Deploying for the first time"
+  ansible.builtin.debug:
+    msg: "Deploying for the first time"
   when: app_check.rc != 0
 ```
 
@@ -179,13 +234,15 @@ A **conditional** (`when:`) decides whether a task runs; a **loop** runs one tas
     - { name: deploy, group: www-data }
     - { name: ci,     group: docker }
 
-# 3) Loop over a variable, with a per-item condition and a label
+# 3) A list of dicts with a per-item condition
 - name: Open only the enabled ports
-  ansible.builtin.debug: msg="opening {{ item }}"
-  loop: "{{ firewall_ports }}"
+  ansible.builtin.debug:
+    msg: "opening {{ item.port }}"
+  loop:
+    - { port: 22,   enabled: true }
+    - { port: 80,   enabled: true }
+    - { port: 8080, enabled: false }
   when: item.enabled
-  loop_control:
-    label: "{{ item.port }}"   # tidy output instead of the whole dict
 
 # 4) Retry until a condition holds (polling)
 - name: Wait for the port to come up
@@ -198,7 +255,24 @@ A **conditional** (`when:`) decides whether a task runs; a **loop** runs one tas
 
 > Note: `with_items`, `with_dict`, etc. are the **older** loop syntax you'll still see in the wild — `loop:` is the modern replacement.
 
-### 6. Jinja2 templates
+### 6. Filters — transforming a value
+
+You don't always want a variable *as-is*. A **filter** transforms it, using the pipe (`|`) — the same idea as a Unix pipe: `{{ value | filter }}`. A few you'll meet constantly:
+
+```yaml
+{{ site_name | upper }}                 # uppercase → "OPERATION GO LIVE"
+{{ port | default(80) }}                # fall back to 80 if 'port' is undefined
+{{ base_packages | length }}            # how many items in the list
+{{ path | basename }}                   # "/etc/nginx/nginx.conf" → "nginx.conf"
+{{ some_dict | to_nice_json }}          # pretty-print a structure
+```
+
+Filters can be chained left-to-right (`{{ name | trim | lower }}`). You'll use them most inside **templates** (next section) to format the values you drop into config files.
+
+!!! tip "Just a heads-up for now"
+    Don't memorize filters today — just recognize the `|` when you see it. Ansible ships dozens (plus all of Jinja2's), listed in [**Playbook filters**](https://docs.ansible.com/ansible/latest/playbook_guide/playbooks_filters.html). Reach for one when you need to reshape a value; look it up then.
+
+### 7. Jinja2 templates
 
 A **template** is a file with `{{ variables }}` and logic that Ansible renders per host with the `template` module. This is how you generate real config files:
 
@@ -207,13 +281,16 @@ A **template** is a file with `{{ variables }}` and logic that Ansible renders p
 worker_processes {{ worker_processes }};
 server {
     server_name {{ inventory_hostname }};
-    # rendered on {{ ansible_distribution }}
+    # rendered on {{ ansible_facts['distribution'] }}
 }
 ```
 
 Templates support **filters** (`{{ name | upper }}`, `{{ port | default(80) }}`), **conditionals** (`{% if %}`), and **loops** (`{% for %}`).
 
-### 7. Roles — the unit of reuse
+!!! note "📖 Reference — Jinja2 templating"
+    Ansible's [**Templating (Jinja2)**](https://docs.ansible.com/ansible/latest/playbook_guide/playbooks_templating.html) guide covers how templates are rendered in playbooks; the [**Jinja2 template designer docs**](https://jinja.palletsprojects.com/en/stable/templates/) are the full language reference for `{% if %}`, `{% for %}`, and the built-in filters.
+
+### 8. Roles — the unit of reuse
 
 A **role** is a standard directory layout that bundles tasks, templates, variables, handlers, and defaults so a workflow becomes portable:
 
@@ -235,6 +312,16 @@ A playbook then just *includes* it:
     - webserver
 ```
 
+!!! example "📂 See it both ways"
+    The repo has the **same nginx setup written twice** so you can compare: a flat playbook in [`examples/ansible/sample-playbook/`](https://github.com/rbalman/devops-month/tree/main/examples/ansible/sample-playbook) and the role-based version in [`examples/ansible/sample-role-playbook/`](https://github.com/rbalman/devops-month/tree/main/examples/ansible/sample-role-playbook). Diff them to see exactly what "packaging into a role" moves where.
+
+Grab the role-based sample to run or study locally:
+
+```bash
+git clone https://github.com/rbalman/devops-month.git
+cp -r devops-month/examples/ansible/sample-role-playbook ~/fleet-role-sample
+```
+
 !!! tip "📺 Watch — *Ansible 101 · Ep 6 — Vault & Roles* (Jeff Geerling, ~1 hr)"
     The definitive walkthrough of roles — from the author of the community roles you're installing. Jump to what maps to today:
 
@@ -242,15 +329,37 @@ A playbook then just *includes* it:
 
     **Chapters:** [conditionals & tags](https://youtu.be/JFweg2dUvqM?t=1293) · [playbook organization](https://youtu.be/JFweg2dUvqM?t=1646) · [roles](https://youtu.be/JFweg2dUvqM?t=2766) · [flexible role usage](https://youtu.be/JFweg2dUvqM?t=3150) · [Ansible Vault](https://youtu.be/JFweg2dUvqM?t=651)
 
-### 8. Ansible Galaxy
+### 9. Ansible Galaxy
 
-**[Galaxy](https://galaxy.ansible.com)** is the public hub for community **roles** and **collections** (bundles of modules/plugins). Scaffold your own or install others':
+You don't have to write every role yourself. **[Ansible Galaxy](https://galaxy.ansible.com)** is the public registry of community-maintained automation — think **npm for JavaScript** or **Docker Hub for images**, but for Ansible content. The `ansible-galaxy` CLI is how you interact with it. It ships two kinds of content:
+
+- **Roles** — a single reusable role (like the `webserver` role above).
+- **Collections** — the modern bundle: many roles *plus* modules and plugins, namespaced as `namespace.name` (e.g. `community.postgresql`).
+
+The same CLI both **scaffolds** your own content and **installs** other people's:
 
 ```bash
-ansible-galaxy role init webserver              # scaffold the layout above
-ansible-galaxy role install geerlingguy.nginx   # pull a popular community role
+ansible-galaxy role init webserver               # scaffold an empty role skeleton (your own)
+ansible-galaxy role install geerlingguy.nginx    # download a community role
 ansible-galaxy collection install community.postgresql
 ```
+
+For a real project you pin dependencies in a **`requirements.yml`** and install them all at once — the reproducible way, instead of ad-hoc `install` commands:
+
+```yaml
+# requirements.yml
+roles:
+  - name: geerlingguy.nginx
+collections:
+  - name: community.postgresql
+```
+
+```bash
+ansible-galaxy install -r requirements.yml
+```
+
+!!! note "📖 Reference — installing content"
+    See [**Installing content from Galaxy**](https://docs.ansible.com/ansible/latest/galaxy/user_guide.html) for roles vs collections, `requirements.yml`, and version pinning. Browse [**geerlingguy's roles**](https://galaxy.ansible.com/ui/standalone/namespaces/geerlingguy/) — Jeff Geerling's are the community gold standard and worth reading as examples.
 
 ---
 
@@ -274,8 +383,8 @@ EOF
 mkdir -p templates
 cat > templates/index.html.j2 << 'EOF'
 <h1>{{ site_name }}</h1>
-<p>Served by {{ inventory_hostname }} ({{ ansible_default_ipv4.address }})</p>
-<p>OS: {{ ansible_distribution }} {{ ansible_distribution_version }} — {{ ansible_processor_vcpus }} vCPU</p>
+<p>Served by {{ inventory_hostname }} ({{ ansible_facts['default_ipv4']['address'] }})</p>
+<p>OS: {{ ansible_facts['distribution'] }} {{ ansible_facts['distribution_version'] }} — {{ ansible_facts['processor_vcpus'] }} vCPU</p>
 EOF
 ```
 

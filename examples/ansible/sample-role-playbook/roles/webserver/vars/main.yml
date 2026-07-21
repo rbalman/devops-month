@@ -1,0 +1,3 @@
+# Role variables — higher precedence than defaults. Constants the role
+# needs internally and that a caller shouldn't usually override.
+web_root: /var/www/html
