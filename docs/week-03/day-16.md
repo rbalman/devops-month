@@ -644,34 +644,29 @@ exit
 
 ## Assignment
 
-Serve a web page with nginx that shows the host's **current uptime**. Do it **two ways** to feel the difference between a plain playbook and a role.
+Write a playbook that uses a **community Galaxy role to install Docker**, then runs an **nginx container** serving a custom page.
 
-**1. As a plain playbook.** Write a single playbook that installs nginx, captures the uptime, and renders it into `/var/www/html/index.html` from a Jinja2 template. Verify with `curl http://192.168.56.30`.
+**Steps:**
 
-**2. As a role.** Package the exact same logic into a role (`ansible-galaxy role init roles/uptime`) and apply it from a short `site.yml`. Same result — now reusable.
+1. Install [`geerlingguy.docker`](https://galaxy.ansible.com/ui/standalone/roles/geerlingguy/docker/documentation/) — declare it in a `requirements.yml` and `ansible-galaxy install -r requirements.yml`.
+2. Write a playbook targeting the `web` group that:
+   - applies the `geerlingguy.docker` role to install Docker,
+   - deploys a minimal `index.html` containing exactly **`Hello World from Ansible!!!`**,
+   - runs an **nginx container**, mapping container port 80 to host **port 8080**, with your page mounted as the site root.
+3. Verify: `curl http://192.168.56.30:8080` returns your `Hello World from Ansible!!!` page (repeat for `192.168.56.31`).
 
-**Reference template** (`templates/index.html.j2`):
-
-```jinja
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <title>Uptime - {{ inventory_hostname }}</title>
-</head>
-<body>
-  <h1>{{ inventory_hostname }}</h1>
-  <p>Uptime: {{ uptime_result.stdout }}</p>
-</body>
-</html>
-```
-
-**Hint:** capture the uptime with `register` + `command`, then use it in the template:
+**Hint:** once Docker is installed, run the container with the `community.docker.docker_container` module:
 
 ```yaml
-- name: Capture uptime
-  ansible.builtin.command: uptime -p
-  register: uptime_result
+- name: Run nginx in a container
+  community.docker.docker_container:
+    name: hello-nginx
+    image: nginx:latest
+    state: started
+    ports:
+      - "8080:80"
+    volumes:
+      - "/opt/site:/usr/share/nginx/html:ro"
 ```
 
 ---
