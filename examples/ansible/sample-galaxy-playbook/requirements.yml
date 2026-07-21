@@ -1,0 +1,4 @@
+# Community roles this project depends on. Install them with:
+#   ansible-galaxy install -r requirements.yml
+roles:
+  - name: geerlingguy.nginx

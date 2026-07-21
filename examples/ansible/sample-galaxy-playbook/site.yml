@@ -1,0 +1,35 @@
+# Install and configure nginx using the community geerlingguy.nginx role from
+# Ansible Galaxy, then drop a minimal static page into its web root.
+#
+# First:  ansible-galaxy install -r requirements.yml
+# Then:   ansible-playbook site.yml
+- name: Host a minimal page with a Galaxy role
+  hosts: web
+  become: true
+
+  vars:
+    doc_root: /var/www/html
+    # geerlingguy.nginx is driven entirely by variables — here we define one
+    # virtual host that serves our doc root.
+    nginx_vhosts:
+      - listen: "80 default_server"
+        server_name: "_"
+        root: "{{ doc_root }}"
+        index: "index.html"
+
+  pre_tasks:
+    - name: Ensure the web root exists
+      ansible.builtin.file:
+        path: "{{ doc_root }}"
+        state: directory
+        mode: "0755"
+
+  roles:
+    - geerlingguy.nginx
+
+  post_tasks:
+    - name: Deploy the minimal homepage
+      ansible.builtin.copy:
+        src: index.html
+        dest: "{{ doc_root }}/index.html"
+        mode: "0644"

@@ -359,7 +359,15 @@ ansible-galaxy install -r requirements.yml
 ```
 
 !!! note "📖 Reference — installing content"
-    See [**Installing content from Galaxy**](https://docs.ansible.com/ansible/latest/galaxy/user_guide.html) for roles vs collections, `requirements.yml`, and version pinning. Browse [**geerlingguy's roles**](https://galaxy.ansible.com/ui/standalone/namespaces/geerlingguy/) — Jeff Geerling's are the community gold standard and worth reading as examples.
+    See [**Installing content from Galaxy**](https://docs.ansible.com/ansible/latest/galaxy/user_guide.html) for roles vs collections, `requirements.yml`, and version pinning. Browse [**geerlingguy's roles**](https://github.com/geerlingguy?tab=repositories&q=ansible-role) — Jeff Geerling's are the community gold standard and worth reading as examples.
+
+!!! example "📂 Sample — host a page with a Galaxy role"
+    [`examples/ansible/sample-galaxy-playbook/`](https://github.com/rbalman/devops-month/tree/main/examples/ansible/sample-galaxy-playbook) uses the community [`geerlingguy.nginx`](https://github.com/geerlingguy/ansible-role-nginx) role (declared in `requirements.yml`) to install and configure nginx, then serves a minimal static page — no hand-written nginx tasks at all. Grab it with:
+
+    ```bash
+    git clone https://github.com/rbalman/devops-month.git
+    cp -r devops-month/examples/ansible/sample-galaxy-playbook ~/fleet-galaxy-sample
+    ```
 
 ---
 
@@ -384,7 +392,7 @@ mkdir -p templates
 cat > templates/index.html.j2 << 'EOF'
 <h1>{{ site_name }}</h1>
 <p>Served by {{ inventory_hostname }} ({{ ansible_facts['default_ipv4']['address'] }})</p>
-<p>OS: {{ ansible_facts['distribution'] }} {{ ansible_facts['distribution_version'] }} — {{ ansible_facts['processor_vcpus'] }} vCPU</p>
+<p>OS: {{ ansible_facts['distribution'] }} {{ ansible_facts['distribution_version'] }} - {{ ansible_facts['processor_vcpus'] }} vCPU</p>
 EOF
 ```
 

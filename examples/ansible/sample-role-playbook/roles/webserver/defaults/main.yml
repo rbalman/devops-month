@@ -1,7 +1,6 @@
 # Lowest-precedence variables — sensible fallbacks the role ships with.
-# Anything set in group_vars/host_vars will win over these.
+# The vars passed to the role in site.yml override these.
 site_name: "Default Site"
-page_title: "Untitled"
 worker_processes: 1
 deploy_user: deploy
 base_packages:

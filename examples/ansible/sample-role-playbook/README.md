@@ -5,8 +5,21 @@ packaged into a reusable **role**. Compare the two side by side to see exactly
 what "turning a playbook into a role" means:
 
 - In the flat sample, `site.yml` holds every task, handler, and `templates/`.
-- Here, `site.yml` is three lines — it just calls the `webserver` role, and all
-  the logic moves under `roles/webserver/` in Ansible's conventional layout.
+- Here, all the logic moves under `roles/webserver/` in Ansible's conventional
+  layout, and `site.yml` just applies the role — **passing its variables
+  directly** (no `group_vars`/`host_vars`, so everything the role is configured
+  with sits in one place).
+
+```yaml
+# site.yml
+roles:
+  - role: webserver
+    vars:
+      site_name: "Operation Go Live"
+      worker_processes: 2
+      deploy_user: deploy
+      base_packages: [htop, curl, git, vim]
+```
 
 ## Structure
 
@@ -14,12 +27,7 @@ what "turning a playbook into a role" means:
 sample-role-playbook/
 ├── ansible.cfg
 ├── inventory.ini
-├── site.yml                     # tiny — just applies the webserver role
-├── group_vars/
-│   └── web.yml
-├── host_vars/
-│   ├── web1.yml
-│   └── web2.yml
+├── site.yml                     # applies the webserver role + passes its vars
 └── roles/
     └── webserver/
         ├── tasks/main.yml       # base tooling, deploy user, nginx + site config
@@ -41,16 +49,6 @@ sample-role-playbook/
 - **Shareable** — a role is the unit you publish to (or install from)
   **Ansible Galaxy**.
 
-## Scaffolding a role
-
-The empty skeleton for a role is generated with:
-
-```bash
-ansible-galaxy role init roles/webserver
-```
-
-(This project already contains a filled-in one.)
-
 ## Run it
 
 From the [Day 1 fleet](../../../docs/week-03/day-15.md) (control node driving
@@ -65,5 +63,6 @@ curl http://192.168.56.30
 curl http://192.168.56.31
 ```
 
-Behaviour is identical to the flat sample — web1 and web2 show different
-`page_title`s (from `host_vars`), and the handlers fire only on change.
+Both nodes are configured from the variables passed to the role in `site.yml`,
+and the handlers fire only on change. Run it a second time — the template tasks
+report `ok`, so nothing restarts (idempotency).

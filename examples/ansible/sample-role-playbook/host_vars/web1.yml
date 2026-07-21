@@ -1,2 +1,0 @@
-# Variables for a single host — overrides group_vars for web1 only.
-page_title: "web1 — Primary"
