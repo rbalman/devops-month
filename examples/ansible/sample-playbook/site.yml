@@ -1,0 +1,65 @@
+# A single, non-role playbook that turns a bare host into a working web server.
+# Everything lives here so you can read the whole workflow top to bottom.
+# (A later sample shows how to package this same logic into a reusable role.)
+#
+# Run with:  ansible-playbook site.yml
+- name: Configure web servers
+  hosts: web
+  become: true
+
+  tasks:
+    - name: Install base tooling
+      ansible.builtin.apt:
+        name: "{{ item }}"
+        state: present
+        update_cache: true
+      loop: "{{ base_packages }}"
+      when: ansible_os_family == "Debian"
+
+    - name: Create the deploy user
+      ansible.builtin.user:
+        name: "{{ deploy_user }}"
+        shell: /bin/bash
+        create_home: true
+
+    - name: Install nginx
+      ansible.builtin.apt:
+        name: nginx
+        state: present
+
+    - name: Deploy the nginx site config
+      ansible.builtin.template:
+        src: templates/nginx-site.conf.j2
+        dest: /etc/nginx/sites-available/default
+        mode: "0644"
+      notify: Validate nginx config
+
+    - name: Render the homepage from a template
+      ansible.builtin.template:
+        src: templates/index.html.j2
+        dest: "{{ web_root }}/index.html"
+        mode: "0644"
+      notify: Restart nginx
+
+    - name: Ensure nginx is running and enabled at boot
+      ansible.builtin.service:
+        name: nginx
+        state: started
+        enabled: true
+
+  handlers:
+    # One handler can notify another — validate the config before reloading.
+    - name: Validate nginx config
+      ansible.builtin.command: nginx -t
+      changed_when: false
+      notify: Reload nginx
+
+    - name: Reload nginx
+      ansible.builtin.service:
+        name: nginx
+        state: reloaded
+
+    - name: Restart nginx
+      ansible.builtin.service:
+        name: nginx
+        state: restarted

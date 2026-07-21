@@ -1,0 +1,14 @@
+# Variables for every host in the `web` group.
+site_name: "Operation Go Live"
+worker_processes: 2
+web_root: /var/www/html
+
+# Base tooling every web node should have (installed via a loop).
+base_packages:
+  - htop
+  - curl
+  - git
+  - vim
+
+# A non-root user that owns application deploys.
+deploy_user: deploy

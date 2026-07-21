@@ -1,0 +1,2 @@
+# Variables for a single host — overrides group_vars for web2 only.
+page_title: "web2 — Secondary"

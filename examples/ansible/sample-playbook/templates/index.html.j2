@@ -1,0 +1,6 @@
+<!-- Rendered per host from variables and gathered facts. -->
+<h1>{{ site_name }}</h1>
+<h2>{{ page_title }}</h2>
+<p>Served by {{ inventory_hostname }} ({{ ansible_default_ipv4.address }})</p>
+<p>OS: {{ ansible_distribution }} {{ ansible_distribution_version }} — {{ ansible_processor_vcpus }} vCPU</p>
+<p>worker_processes = {{ worker_processes }}</p>

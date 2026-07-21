@@ -22,7 +22,54 @@
 
 ## Theory · ~20 min
 
-### 1. Variables — and where they live
+### 1. The project structure
+
+Day 1 left you with a flat `~/fleet` — an `ansible.cfg`, an `inventory.ini`, and a playbook or two side by side. That works until you add variables, templates, and reusable logic. Ansible has a **conventional directory layout** that it discovers *automatically*: put files in the right place and it wires them up with no extra configuration. Everything you build today lands somewhere in this tree:
+
+```
+fleet/
+├── ansible.cfg              # project config (Day 1)
+├── inventory.ini            # hosts & groups (Day 1)
+├── group_vars/
+│   └── web.yml              # variables for every host in the 'web' group
+├── host_vars/
+│   └── web1.yml             # variables for a single host
+├── templates/
+│   └── index.html.j2        # Jinja2 files rendered per host
+├── site.yml                 # the top-level playbook
+└── roles/
+    └── webserver/           # a self-contained, reusable unit
+        ├── tasks/main.yml
+        ├── handlers/main.yml
+        ├── templates/
+        ├── defaults/main.yml
+        └── vars/main.yml
+```
+
+The magic is **convention over configuration**: name a directory `group_vars/web.yml` and every host in the `web` group picks up those variables with zero wiring. Drop a role under `roles/webserver/` and a playbook can call it by name. You'll create each of these directories as you go today — but knowing the shape up front tells you *where* each new concept belongs.
+
+!!! note "📖 Reference — the canonical layout"
+    Ansible's own [**Sample Ansible setup**](https://docs.ansible.com/projects/ansible/latest/tips_tricks/sample_setup.html) documents this directory hierarchy in full — including how to organize multiple environments (production/staging) with separate inventories.
+
+There's **no built-in command that scaffolds the project layout** — you have two ways to get started:
+
+**Option A — build it yourself.** Create the directories by hand as each section calls for them (recommended for learning):
+
+```bash
+cd ~/fleet
+mkdir -p group_vars host_vars templates   # ansible.cfg + inventory.ini already exist from Day 1
+```
+
+**Option B — clone the finished sample.** A complete, runnable version of everything you build today lives in this repo at [`examples/ansible/sample-playbook/`](https://github.com/rbalman/devops-month/tree/main/examples/ansible/sample-playbook) — inventory, `group_vars`/`host_vars`, templates, and a single flat playbook:
+
+```bash
+git clone https://github.com/rbalman/devops-month.git
+cp -r devops-month/examples/ansible/sample-playbook ~/fleet-sample
+```
+
+Use it as a reference (or a starting point) if you get stuck.
+
+### 2. Variables — and where they live
 
 A **variable** is a named value you reference with `{{ mustache }}` syntax. They can be defined in many places; the ones you'll use most:
 
@@ -41,7 +88,7 @@ worker_processes: 2
 
 **Precedence** (simplified): CLI `--extra-vars` > `host_vars` > `group_vars` > play `vars` > role defaults. When two sources set the same variable, the higher one wins.
 
-### 2. Facts — what Ansible knows about a host
+### 3. Facts — what Ansible knows about a host
 
 Before running tasks, Ansible **gathers facts** — hostname, IP addresses, OS, CPU count, memory, and hundreds more. Reference them like any variable:
 
@@ -51,21 +98,6 @@ Before running tasks, Ansible **gathers facts** — hostname, IP addresses, OS, 
 ```
 
 See them all with `ansible web1 -m setup`. Facts let one playbook adapt to each machine (e.g. size a config by `ansible_processor_vcpus`).
-
-### 3. Jinja2 templates
-
-A **template** is a file with `{{ variables }}` and logic that Ansible renders per host with the `template` module. This is how you generate real config files:
-
-```jinja
-# nginx.conf.j2
-worker_processes {{ worker_processes }};
-server {
-    server_name {{ inventory_hostname }};
-    # rendered on {{ ansible_distribution }}
-}
-```
-
-Templates support **filters** (`{{ name | upper }}`, `{{ port | default(80) }}`), **conditionals** (`{% if %}`), and **loops** (`{% for %}`).
 
 ### 4. Handlers — act only on change
 
@@ -88,9 +120,47 @@ handlers:
 
 If the template render is `ok` (no change), the handler never fires. Idempotency, applied to services.
 
-### 5. Loops and conditionals
+### 5. Conditions and loops
+
+A **conditional** (`when:`) decides whether a task runs; a **loop** runs one task many times. Together they keep a playbook short and adaptive.
+
+**Conditionals** — the expression is plain Jinja, so no `{{ }}`:
 
 ```yaml
+- name: Only on Debian-family hosts
+  ansible.builtin.debug: msg="Debian-family host"
+  when: ansible_os_family == "Debian"
+
+# Combine tests — a list is an implicit AND
+- name: Restart only if service is present and enabled
+  ansible.builtin.service: name=nginx state=restarted
+  when:
+    - "'nginx' in ansible_facts.packages"
+    - ansible_os_family == "Debian"
+
+# OR, negation, and numeric comparison
+- name: Warn on small boxes
+  ansible.builtin.debug: msg="Low memory"
+  when: ansible_memtotal_mb < 1024 or ansible_processor_vcpus == 1
+```
+
+**`register` + `when`** — capture a task's result and branch on it:
+
+```yaml
+- name: Check if the app is deployed
+  ansible.builtin.command: test -f /opt/app/current
+  register: app_check
+  ignore_errors: true          # don't abort the play on non-zero exit
+
+- name: Deploy only when missing
+  ansible.builtin.debug: msg="Deploying for the first time"
+  when: app_check.rc != 0
+```
+
+**Loops** come in several shapes:
+
+```yaml
+# 1) A simple list
 - name: Install several packages
   ansible.builtin.apt:
     name: "{{ item }}"
@@ -100,12 +170,50 @@ If the template render is `ok` (no change), the handler never fires. Idempotency
     - curl
     - git
 
-- name: Only on Ubuntu
-  ansible.builtin.debug: msg="Debian-family host"
-  when: ansible_os_family == "Debian"
+# 2) A list of dicts — reference sub-keys with item.<key>
+- name: Create app users
+  ansible.builtin.user:
+    name: "{{ item.name }}"
+    groups: "{{ item.group }}"
+  loop:
+    - { name: deploy, group: www-data }
+    - { name: ci,     group: docker }
+
+# 3) Loop over a variable, with a per-item condition and a label
+- name: Open only the enabled ports
+  ansible.builtin.debug: msg="opening {{ item }}"
+  loop: "{{ firewall_ports }}"
+  when: item.enabled
+  loop_control:
+    label: "{{ item.port }}"   # tidy output instead of the whole dict
+
+# 4) Retry until a condition holds (polling)
+- name: Wait for the port to come up
+  ansible.builtin.command: nc -z localhost 80
+  register: port_check
+  until: port_check.rc == 0
+  retries: 5
+  delay: 3
 ```
 
-### 6. Roles — the unit of reuse
+> Note: `with_items`, `with_dict`, etc. are the **older** loop syntax you'll still see in the wild — `loop:` is the modern replacement.
+
+### 6. Jinja2 templates
+
+A **template** is a file with `{{ variables }}` and logic that Ansible renders per host with the `template` module. This is how you generate real config files:
+
+```jinja
+# nginx.conf.j2
+worker_processes {{ worker_processes }};
+server {
+    server_name {{ inventory_hostname }};
+    # rendered on {{ ansible_distribution }}
+}
+```
+
+Templates support **filters** (`{{ name | upper }}`, `{{ port | default(80) }}`), **conditionals** (`{% if %}`), and **loops** (`{% for %}`).
+
+### 7. Roles — the unit of reuse
 
 A **role** is a standard directory layout that bundles tasks, templates, variables, handlers, and defaults so a workflow becomes portable:
 
@@ -134,7 +242,7 @@ A playbook then just *includes* it:
 
     **Chapters:** [conditionals & tags](https://youtu.be/JFweg2dUvqM?t=1293) · [playbook organization](https://youtu.be/JFweg2dUvqM?t=1646) · [roles](https://youtu.be/JFweg2dUvqM?t=2766) · [flexible role usage](https://youtu.be/JFweg2dUvqM?t=3150) · [Ansible Vault](https://youtu.be/JFweg2dUvqM?t=651)
 
-### 7. Ansible Galaxy
+### 8. Ansible Galaxy
 
 **[Galaxy](https://galaxy.ansible.com)** is the public hub for community **roles** and **collections** (bundles of modules/plugins). Scaffold your own or install others':
 

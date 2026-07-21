@@ -150,6 +150,9 @@ A **playbook** is a **YAML** file: a list of **plays**; each play maps a group o
 - **The module** — the `ansible.builtin.apt` line is the *verb* that does the work; browse the full catalog in the [Ansible module index](https://docs.ansible.com/ansible/latest/collections/index_module.html) or list them locally with `ansible-doc -l`.
 - **Indentation is structure** — a wrong indent is the #1 beginner error.
 
+!!! note "📖 Reference — YAML syntax"
+    New to the format? Ansible's [**YAML Syntax**](https://docs.ansible.com/projects/ansible/latest/reference_appendices/YAMLSyntax.html#yaml-syntax) page is the concise reference for lists, dictionaries, quoting, and multi-line strings — the whole subset you need to read every playbook.
+
 **Project layout.** One playbook is a single file, but real projects follow a conventional tree so Ansible finds things automatically (you'll fill this out on Day 2):
 
 ```
@@ -463,6 +466,7 @@ Write a playbook that installs `htop`, `tree`, and `jq` on the `web` group — t
 **Reference**
 
 - [Ansible — Getting Started](https://docs.ansible.com/ansible/latest/getting_started/index.html) — the official on-ramp
+- [YAML Syntax](https://docs.ansible.com/projects/ansible/latest/reference_appendices/YAMLSyntax.html#yaml-syntax) — the concise syntax reference for playbooks
 - [How Ansible works](https://www.ansible.com/overview/how-ansible-works) — architecture in one page
 - [Ansible module index](https://docs.ansible.com/ansible/latest/collections/index_module.html) — every built-in verb
 - [Idempotency, explained](https://docs.ansible.com/ansible/latest/reference_appendices/glossary.html#term-Idempotency) — the concept that makes it all safe
