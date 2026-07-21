@@ -29,7 +29,15 @@ sample-galaxy-playbook/
 - `requirements.yml` lists `geerlingguy.nginx` as a dependency.
 - `site.yml` configures the role through its variables (`nginx_vhosts`) — the
   role itself owns *installing* and *configuring* nginx.
+- `nginx_remove_default_vhost: true` deletes the vhost the Ubuntu nginx package
+  ships (`/etc/nginx/sites-enabled/default`). Without it, that file and our vhost
+  both claim `default_server` on port 80 and nginx refuses to start
+  (`duplicate default server for 0.0.0.0:80`).
 - A `post_tasks` step copies `files/index.html` into the web root the vhost serves.
+
+> You may see a `INJECT_FACTS_AS_VARS` deprecation **warning** during the run —
+> it comes from inside the `geerlingguy.nginx` role, not this project, and is
+> harmless. It'll go away when the role updates upstream.
 
 ## Run it
 

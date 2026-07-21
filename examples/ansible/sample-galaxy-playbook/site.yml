@@ -9,6 +9,9 @@
 
   vars:
     doc_root: /var/www/html
+    # Remove the vhost the nginx package ships (/etc/nginx/sites-enabled/default);
+    # otherwise it and ours both claim `default_server` on :80 and nginx won't start.
+    nginx_remove_default_vhost: true
     # geerlingguy.nginx is driven entirely by variables — here we define one
     # virtual host that serves our doc root.
     nginx_vhosts:
