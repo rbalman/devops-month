@@ -1,199 +1,215 @@
-# Day 3 · AWS I — Identity & Compute (IAM + EC2)
+# Day 3 · AWS I — Cloud Foundations & the Console
 
-> You've configured servers you own (Vagrant boxes). Now the servers live in **someone else's data center** — the cloud. Today you meet **AWS**: first **IAM** (who is allowed to do what — the foundation everything else rests on), then **EC2** (virtual machines), **security groups** (cloud firewalls), **AMIs** (machine images), and **key pairs**. The payoff: at the end you'll take *yesterday's Ansible playbook* and run it against a real EC2 instance — proving the skills transfer with zero changes.
+> For two weeks you've run everything on machines you can touch — Vagrant boxes, Docker containers on your laptop. Today **Operation: Go Live moves to the cloud**. Before we launch anything, you need the map: what "the cloud" actually means (**IaaS / PaaS / SaaS**), who the big providers are, and how to find your way around the **AWS Management Console**. This is the one light-on-hands day of the AWS block — tomorrow you launch a real server. Today you get oriented (and set a billing alarm so the cloud never surprises you).
 
-!!! warning "This week costs real money if you're careless"
-    Everything today fits in the **AWS Free Tier** (`t2.micro`/`t3.micro`, 750 hrs/month for 12 months). But an instance left running, or an unattached Elastic IP, *will* bill you. **Every AWS lab ends with a teardown checklist — do not skip it.** Set a billing alarm before you start.
+!!! warning "Turn on billing alerts before anything else"
+    The cloud bills by the hour (or the request). Nothing today costs money, but **do the account + billing-alarm step in the lab first** — it's the seatbelt for the rest of the week.
 
 ## Learning Objectives
 
-- Navigate **regions** and **availability zones** and configure the **AWS CLI**
-- Model access with **IAM** — users, groups, roles, and policies (**least privilege**)
-- Launch, inspect, and terminate an **EC2** instance
-- Control traffic with **security groups**; understand **AMIs**, instance types, and **EBS**
-- Re-target your Day 2 Ansible playbook at a cloud host
-- **Tear down** everything you created
+- Explain the three cloud service models — **IaaS, PaaS, SaaS** — and place real products in each
+- Name the **major cloud providers** and roughly where AWS sits in the market
+- Describe AWS **regions** and **availability zones** and why they exist
+- Navigate the **AWS Management Console**: region selector, service search, account menu, CloudShell
+- Create an AWS account and set a **billing alarm**
 
 ---
 
 ## Prerequisites
 
-- An **AWS account** (credit card required; free tier covers this week)
-- The Day 2 Ansible project on your control node (for the callback)
-- A billing alarm (Billing → Budgets → create a $1 alert)
+- A credit/debit card (AWS requires one to open an account; the free tier covers this week)
+- An email address you control
 
 ---
 
-## Theory · ~20 min
+## Theory · ~25 min
 
-### 1. Regions & availability zones
+### 1. What "the cloud" is — and the three service models
 
-AWS runs in **regions** (geographic areas, e.g. `us-east-1`, `ap-south-1`), each containing multiple isolated **availability zones** (AZs, e.g. `us-east-1a`). You pick a region close to your users; spreading resources across AZs is how you survive a data-center failure. Most resources are **region-scoped** — an instance in `us-east-1` is invisible from the `eu-west-1` console.
+"The cloud" just means **renting computing resources over the internet** instead of buying and racking your own hardware. Someone else owns the data center, the power, the cooling, the network — you pay for what you use and walk away when you're done.
 
-### 2. IAM — identity and access management
+How *much* they manage vs. how much you manage is the whole story. That's the **IaaS / PaaS / SaaS** spectrum:
 
-IAM is the **gatekeeper**. Four concepts:
+| Model | You manage | Provider manages | Real example |
+|---|---|---|---|
+| **IaaS** — Infrastructure as a Service | OS, runtime, app, data | Servers, storage, network, virtualization | **AWS EC2**, Google Compute Engine |
+| **PaaS** — Platform as a Service | Just your app + data | Everything below the app (OS, runtime, scaling) | **Heroku**, AWS Elastic Beanstalk, Vercel |
+| **SaaS** — Software as a Service | Nothing — you just use it | The entire stack | **Gmail**, Slack, Salesforce |
 
-| Concept | What it is |
+A useful analogy: **IaaS is renting a plot of land and building the house yourself; PaaS is renting a furnished apartment; SaaS is staying in a hotel.** This week lives almost entirely in **IaaS** (EC2, VPC, load balancers) — the layer where DevOps engineers do most of their work — with a few managed (PaaS-ish) services sprinkled in.
+
+### 2. The major cloud providers
+
+| Provider | Notes |
 |---|---|
-| **User** | A person or app with long-lived credentials |
-| **Group** | A named set of users; attach policies once, apply to all |
-| **Policy** | A JSON document listing allowed/denied **actions** on **resources** |
-| **Role** | Temporary permissions *assumed* by a service or user — no stored password |
+| **AWS** (Amazon Web Services) | The market leader (~30% share); widest service catalog; what this course uses |
+| **Microsoft Azure** | Strong in enterprise / Microsoft shops (~20–25%) |
+| **Google Cloud (GCP)** | Strong in data, ML, Kubernetes (~10–12%) |
+| **Others** | DigitalOcean & Linode (developer-friendly, simpler), Oracle Cloud, IBM, Alibaba Cloud |
 
-**Least privilege**: grant only what's needed. Your **root** account should be locked away (MFA, never used day-to-day); do everything as an IAM user.
+The concepts transfer: a "VM" is EC2 on AWS, a "Compute Engine instance" on GCP, a "Virtual Machine" on Azure. Learn one deeply and the others become a translation exercise.
 
-A policy is just JSON:
+### 3. AWS Introduction
 
-```json
-{
-  "Version": "2012-10-17",
-  "Statement": [{
-    "Effect": "Allow",
-    "Action": ["ec2:DescribeInstances", "ec2:StartInstances"],
-    "Resource": "*"
-  }]
-}
-```
+#### A brief history
 
-**Roles** matter most in the cloud: instead of putting AWS keys *on* an EC2 instance, you attach a **role** and the instance gets rotating temporary credentials automatically.
+AWS launched in **2006** with S3 and EC2 — Amazon rented out the spare capacity it had built for its own retail platform, and effectively invented the modern cloud market. It's been the **#1 provider** ever since and is Amazon's most profitable division. Today it offers **200+ services** — browse the whole catalog on the visual [**AWS periodic table**](https://awsperiodictable.com) — you'll touch about a dozen of the foundational ones this week.
 
-!!! tip "📺 Watch — *AWS IAM Explained for Beginners* (~23 min)"
-    A chaptered walkthrough of exactly this section — users, groups, policies, and roles.
+#### Regions and availability zones
 
-    [![AWS IAM Explained for Beginners](https://img.youtube.com/vi/B-MwKnNBh5s/hqdefault.jpg){ width="360" }](https://youtu.be/B-MwKnNBh5s)
+AWS is physically spread across the globe:
 
-    **Chapters:** [what is IAM](https://youtu.be/B-MwKnNBh5s?t=49) · [create a user](https://youtu.be/B-MwKnNBh5s?t=276) · [attach policies](https://youtu.be/B-MwKnNBh5s?t=590) · [groups](https://youtu.be/B-MwKnNBh5s?t=754) · [roles](https://youtu.be/B-MwKnNBh5s?t=950) · [assume a role](https://youtu.be/B-MwKnNBh5s?t=1214)
+- A **Region** is a geographic area — `us-east-1` (N. Virginia), `eu-west-1` (Ireland), `ap-south-1` (Mumbai). You pick one close to your users. Most resources are **region-scoped**: an instance in `us-east-1` is invisible from the `eu-west-1` console.
+- An **Availability Zone (AZ)** is one or more isolated data centers *within* a region — `us-east-1a`, `us-east-1b`. Spreading resources across AZs is how you survive a single data-center failure (you'll do exactly this with a load balancer on Day 5).
 
-### 3. EC2 — elastic compute
+See the full, current list of regions and their AZs on AWS's own map: [**AWS Global Infrastructure — Regions & Availability Zones**](https://aws.amazon.com/about-aws/global-infrastructure/regions_az/).
 
-**EC2** is virtual machines on demand. To launch one you choose:
+!!! tip "📺 Watch — AWS Regions & Availability Zones"
+    A short, clear explainer of the region/AZ model you just read.
 
-- **AMI** (Amazon Machine Image) — the OS template (e.g. Ubuntu 22.04). You can build your own "golden AMI" with your software baked in.
-- **Instance type** — the size (`t2.micro` = 1 vCPU / 1 GB, free-tier eligible).
-- **Key pair** — an SSH keypair; AWS stores the public key, you keep the private `.pem`.
-- **Security group** — the firewall (below).
-- **Storage** — an **EBS** volume (network-attached virtual disk) that persists independently of the instance.
+    [![AWS Regions & Availability Zones](https://img.youtube.com/vi/3XFODda6YXo/hqdefault.jpg){ width="360" }](https://www.youtube.com/watch?v=3XFODda6YXo)
 
-### 4. Security groups
+### 4. Accessing AWS Resources
 
-A **security group** is a stateful virtual firewall attached to an instance. You write **inbound** rules (outbound is allow-all by default); replies to allowed connections come back automatically — the same statefulness you saw with `ufw` in Week 2. Rule of thumb: open **22** (SSH) only to your IP, **80/443** to the world.
+There are three ways to work with AWS — the same actions, three interfaces. You'll use all of them this week.
 
-### 5. The AWS CLI
+#### 4.a The Management Console
 
-The console is for learning; the **CLI** is for real work (and what Ansible/Terraform use under the hood). It authenticates with an IAM user's **access key**:
+The **Console** (`console.aws.amazon.com`) is the web UI for AWS — where you'll learn by clicking before you automate. The four things to find immediately:
+
+- **Region selector** (top-right) — *always check this first;* resources you create only exist in the selected region.
+- **Service search** (top bar) — type `EC2`, `IAM`, `S3` to jump anywhere.
+- **Account menu** (top-right) — billing, security credentials, sign-out.
+- **CloudShell** (terminal icon) — a browser terminal with the AWS CLI pre-authenticated, so you can run `aws ...` commands without installing anything.
+
+!!! tip "📺 Watch — AWS Management Console tour"
+    A quick navigation walkthrough of the console you're about to open.
+
+    [![AWS Management Console tour](https://img.youtube.com/vi/i331jNgsL_4/hqdefault.jpg){ width="360" }](https://www.youtube.com/watch?v=i331jNgsL_4)
+
+#### 4.b The AWS CLI
+
+The console is great for learning; the **CLI** is how you do real work — scriptable, repeatable, and what tools like Ansible and Terraform drive under the hood. Install it on **Ubuntu 24.04**:
 
 ```bash
-aws configure          # paste Access Key ID + Secret, set region + output=json
-aws sts get-caller-identity   # confirm who you are
+sudo apt update && sudo apt install -y unzip curl
+curl "https://awscli.amazonaws.com/awscli-exe-linux-$(uname -m).zip" -o "awscliv2.zip"
+unzip awscliv2.zip
+sudo ./aws/install
+aws --version          # confirm: aws-cli/2.x.x ...
 ```
+
+Then authenticate it with an IAM user's **access key** (you'll create that user tomorrow):
+
+```bash
+aws configure          # paste Access Key ID + Secret, set default region + output=json
+aws sts get-caller-identity    # confirm who you are
+```
+
+> Full, always-current install steps for every OS: [AWS CLI — Install or update](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html).
+
+#### 4.c The AWS API
+
+Under the hood, both the console and the CLI just make **HTTPS API calls** to AWS. Every SDK and tool speaks this same API — that's why anything you can click, you can automate. The CLI command `aws ec2 describe-instances` is really a plain HTTPS request to the EC2 endpoint — visible as raw `curl`:
+
+```bash
+curl "https://ec2.us-east-1.amazonaws.com/?Action=DescribeInstances&Version=2016-11-15" \
+  -H "X-Amz-Date: 20260722T120000Z" \
+  -H "Authorization: AWS4-HMAC-SHA256 \
+      Credential=AKIAEXAMPLE/20260722/us-east-1/ec2/aws4_request, \
+      SignedHeaders=host;x-amz-date, \
+      Signature=<sigv4-signature>"
+```
+
+It's just HTTP + query parameters. The one hard part is that `Authorization` header — a **SigV4 signature** derived from your secret key that AWS uses to authenticate the request. Computing it by hand is painful, which is exactly why the CLI and SDKs exist: they build and sign this request for you.
+
+Same action, three doors: **click it** (Console), **script it** (CLI), or **call it** (raw API/SDK).
 
 ---
 
-## Lab · ~50 min
+## Lab · ~35 min
 
-### Step 1 — Create an IAM user and group (console)
+Today's lab is *setup and orientation* — no paid resources, so no teardown.
 
-1. **IAM → User groups → Create group** `devops`; attach the AWS-managed policy **`AmazonEC2FullAccess`** (fine for a lab).
-2. **IAM → Users → Create user** `you-devops`, add to the `devops` group.
-3. On the user, **Security credentials → Create access key** (CLI use-case). Save the key ID and secret.
+### Step 1 — Create your AWS account
 
-### Step 2 — Configure the CLI
+1. Go to [aws.amazon.com](https://aws.amazon.com) → **Create an AWS Account**.
+2. Enter email, account name, and a card (required; free tier covers this week).
+3. Choose the **Basic (free) support plan**.
+4. Sign in to the **Console** as the **root user**.
 
-```bash
-aws configure        # region e.g. us-east-1, output json
-aws sts get-caller-identity      # should print your user ARN
-```
+### Step 2 — Set a billing alarm (do this now)
 
-### Step 3 — Key pair and security group
+1. In the console, search **Billing and Cost Management**.
+2. **Budgets → Create budget → Zero spend / monthly cost budget**, set a **$1** threshold.
+3. Enter your email for the alert. You'll now get an email the moment anything starts costing money.
 
-```bash
-# SSH key pair (AWS keeps the public half)
-aws ec2 create-key-pair --key-name golive --query 'KeyMaterial' \
-  --output text > golive.pem && chmod 400 golive.pem
+!!! danger "Protect the root user"
+    The **root** account can do *anything* and can't be restricted. Enable **MFA** on it (Account menu → Security credentials → MFA), then stop using it for daily work — tomorrow you'll create an IAM user for that.
 
-# Security group: SSH from your IP only, HTTP from anywhere
-MYIP=$(curl -s https://checkip.amazonaws.com)
-aws ec2 create-security-group --group-name golive-sg \
-  --description "Go Live lab" --query 'GroupId' --output text
-# (note the returned sg-xxxx; use it below)
-SG=sg-xxxxxxxx
-aws ec2 authorize-security-group-ingress --group-id $SG \
-  --protocol tcp --port 22 --cidr ${MYIP}/32
-aws ec2 authorize-security-group-ingress --group-id $SG \
-  --protocol tcp --port 80 --cidr 0.0.0.0/0
-```
+### Step 3 — Tour the console
 
-### Step 4 — Launch an EC2 instance
+- Open the **Region selector** (top-right) and switch between two regions — notice the URL and available resources change.
+- Set your working region (e.g. **`us-east-1`** or the one nearest you) and keep it consistent all week.
+- Use the **service search** to open **EC2**, then **IAM**, then **S3** — just to see where they live.
+
+### Step 4 — Open CloudShell and confirm identity
+
+Click the **CloudShell** icon (terminal, top bar) and run:
 
 ```bash
-# Latest Ubuntu 22.04 AMI for your region
-AMI=$(aws ec2 describe-images --owners 099720109477 \
-  --filters "Name=name,Values=ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-amd64-server-*" \
-  --query 'sort_by(Images,&CreationDate)[-1].ImageId' --output text)
-
-aws ec2 run-instances --image-id $AMI --instance-type t3.micro \
-  --key-name golive --security-group-ids $SG \
-  --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=golive-web}]' \
-  --query 'Instances[0].InstanceId' --output text
-# wait ~30s, then get the public IP:
-aws ec2 describe-instances --filters "Name=tag:Name,Values=golive-web" \
-  --query 'Reservations[0].Instances[0].PublicIpAddress' --output text
+aws sts get-caller-identity     # prints your account ID and current identity
+aws ec2 describe-regions --query 'Regions[].RegionName' --output text
 ```
 
-SSH in to confirm:
+The first confirms the CLI is authenticated as you; the second lists every region available to your account. You now have both the GUI and the CLI at your fingertips.
+
+### Step 5 — Install and configure the AWS CLI on your machine
+
+CloudShell is handy, but real work happens from the CLI on your own laptop. This video walks the whole step end to end — installing the CLI, creating an access key ID & secret access key, and running `aws configure`:
+
+!!! tip "📺 Watch — Install the CLI, create keys & run `aws configure`"
+    Full walkthrough of installing the AWS CLI, generating your access key, and configuring it.
+
+    [![Install & configure the AWS CLI](https://img.youtube.com/vi/OG-hrdX2CdU/hqdefault.jpg){ width="360" }](https://www.youtube.com/watch?v=OG-hrdX2CdU)
+
+Install it (Ubuntu 24.04 — full steps in §4.b):
 
 ```bash
-ssh -i golive.pem ubuntu@<public-ip>
-exit
+curl "https://awscli.amazonaws.com/awscli-exe-linux-$(uname -m).zip" -o "awscliv2.zip"
+unzip awscliv2.zip && sudo ./aws/install
+aws --version
 ```
 
-### Step 5 — The payoff: point Ansible at EC2
-
-Ansible doesn't care whether a host is a Vagrant box or an EC2 instance — it's all SSH. On your **control node** (or wherever your Day 2 project lives), add the cloud host:
-
-```ini
-# inventory-aws.ini
-[web]
-golive-web ansible_host=<public-ip> ansible_user=ubuntu ansible_ssh_private_key_file=./golive.pem
-```
+Configure it. You'll create a dedicated IAM user for this **tomorrow**, so for today make a **temporary access key** and delete it at the end of this step (Account menu → **Security credentials → Create access key**). *(Prefer not to create a key yet? Skip `aws configure` and run the commands below in CloudShell, where you're already authenticated.)*
 
 ```bash
-ansible-playbook -i inventory-aws.ini site.yml      # yesterday's role, cloud target
-curl http://<public-ip>                              # your templated homepage, in the cloud
+aws configure          # paste the Access Key ID + Secret, region e.g. us-east-1, output json
 ```
 
-Same playbook. Same result. That's the whole point of configuration management.
-
-### Step 6 — 🔻 Teardown checklist
+Now run a few read-only commands to feel the CLI:
 
 ```bash
-# Terminate the instance
-aws ec2 terminate-instances --instance-ids <instance-id>
-# Delete the security group (after the instance is gone)
-aws ec2 delete-security-group --group-id $SG
-# Delete the key pair
-aws ec2 delete-key-pair --key-name golive
+aws sts get-caller-identity                                    # who am I / which account
+aws ec2 describe-regions --output table                        # every region you can use
+aws ec2 describe-instances \
+  --query 'Reservations[].Instances[].InstanceId' --output text   # none yet — expect empty
+aws ec2 describe-vpcs \
+  --query 'Vpcs[].{VpcId:VpcId,Cidr:CidrBlock,Default:IsDefault}' --output table   # your default VPC
 ```
 
-Then in the console, confirm **EC2 → Instances** shows *terminated* and no volumes linger under **EC2 → Volumes**.
+If you created a temporary access key above, **delete it now** (same Security credentials page) — you'll switch to a proper IAM user tomorrow.
 
 ---
 
 ## Advanced Topics
 
-- **Instance roles** — attach an IAM role to EC2 so code on it calls AWS with no stored keys (you'll rely on this pattern constantly).
-- **User data** — a startup script passed at launch (`--user-data`) that bootstraps the instance — a lightweight alternative to config management for first-boot setup.
-- **Spot & reserved** — pricing models: spot for cheap interruptible compute, reserved/savings plans for steady workloads.
-- **Golden AMIs** — bake configured images (with Packer) so instances boot ready-to-serve.
+*Optional, adjacent to today — each links straight to the source:*
 
----
-
-## Assignment
-
-1. **Least-privilege policy.** Replace `AmazonEC2FullAccess` with a *custom* policy that allows only `ec2:Describe*` plus start/stop/terminate. Attach it, and show one command that now works and one that's denied.
-2. **Two-tier security group.** Launch a second instance as a "database" that accepts port 5432 **only** from the web instance's security group (not the internet). Prove the web box can reach it and your laptop cannot.
-3. **Reflect.** In 3–4 sentences: what did launching + configuring EC2 by hand reveal that Terraform (Days 6–7) will automate away?
+- [AWS Organizations](https://docs.aws.amazon.com/organizations/latest/userguide/orgs_introduction.html) — manage many accounts (prod / dev / sandbox) under one billing umbrella with guardrails.
+- [Shared Responsibility Model](https://aws.amazon.com/compliance/shared-responsibility-model/) — the exact line between what AWS secures and what you secure.
+- [AWS Well-Architected Framework](https://aws.amazon.com/architecture/well-architected/) — the six pillars of a sound cloud architecture.
+- [Cost Explorer](https://docs.aws.amazon.com/cost-management/latest/userguide/ce-what-is.html) — visualize and forecast spend by service and tag.
 
 ---
 
@@ -201,11 +217,14 @@ Then in the console, confirm **EC2 → Instances** shows *terminated* and no vol
 
 **Watch**
 
-- 📺 [AWS IAM Explained for Beginners](https://youtu.be/B-MwKnNBh5s) (CodeSnippet) — users, groups, roles & policies, chaptered
+- 📺 [AWS Regions & Availability Zones](https://www.youtube.com/watch?v=3XFODda6YXo) — the region/AZ model
+- 📺 [AWS Management Console tour](https://www.youtube.com/watch?v=i331jNgsL_4) — console navigation
 
 **Reference**
 
-- [AWS — What is IAM?](https://docs.aws.amazon.com/IAM/latest/UserGuide/introduction.html)
-- [AWS — Amazon EC2](https://docs.aws.amazon.com/ec2/)
-- [AWS CLI reference](https://awscli.amazonaws.com/v2/documentation/api/latest/index.html)
+- [AWS — Global Infrastructure: Regions & Availability Zones](https://aws.amazon.com/about-aws/global-infrastructure/regions_az/)
+- [AWS periodic table](https://awsperiodictable.com) — every AWS service, visual catalog
+- [AWS — What is cloud computing?](https://aws.amazon.com/what-is-cloud-computing/)
 - [AWS Free Tier](https://aws.amazon.com/free/) — know what's covered before you click
+- [AWS — Types of cloud computing (IaaS/PaaS/SaaS)](https://aws.amazon.com/types-of-cloud-computing/)
+- [AWS Documentation](https://docs.aws.amazon.com) — the official docs for every service

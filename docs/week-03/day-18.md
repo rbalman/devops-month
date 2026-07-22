@@ -1,162 +1,169 @@
-# Day 4 · AWS II — Networking, Load Balancing & Storage
+# Day 4 · AWS II — Launch an EC2 Machine + IAM
 
-> One server is a single point of failure. Today you build the shape of a real web tier: a **VPC** (your own private slice of the AWS network — the Week 2 networking concepts, now in the cloud), two instances across **availability zones**, an **Application Load Balancer** spreading traffic between them, and **S3** for object storage and static hosting. This is the "Go Live" architecture that survives a node — or a whole AZ — going down.
+> Yesterday you got oriented. Today you build the thing the cloud is famous for: a **virtual server on demand**. You'll launch an **EC2** instance — choosing its **AMI** (OS image), **instance type** (size), **key pair** (SSH access), storage, and the **VPC** it lands in — then SSH in. First a short stop at **IAM**, because *who is allowed to do what* is the foundation everything else sits on. The payoff comes in the assignment: you'll point an **Ansible playbook** at this real cloud host to deploy a website — proving your Week-3 skills transfer to the cloud with zero changes.
 
-!!! danger "Load balancers are NOT free tier"
-    An ALB costs roughly **$0.02–0.03/hour** plus data processing — a few cents for a lab, but **dollars if you leave it running for days**. Same for NAT gateways and idle Elastic IPs. Do the lab in one sitting and run the **teardown** at the end.
+!!! warning "Free-tier, but only if you tear down"
+    EC2 `t3.micro`/`t2.micro` is free-tier eligible (**750 hrs/month for 12 months**). But an instance left running past the free tier, or an unattached Elastic IP, *will* bill you. **This lab ends with a teardown checklist — do not skip it.**
 
 ## Learning Objectives
 
-- Explain a **VPC**, subnets, route tables, and the internet gateway — cloud networking
-- Distinguish **public** vs **private** subnets
-- Put two instances behind an **Application Load Balancer** with a **target group** and health checks
-- Understand **Auto Scaling** groups conceptually
-- Use **S3** for object storage and static website hosting
-- Tear the whole stack down
+- Model access with **IAM** — users, groups, roles, policies (**least privilege**)
+- Understand the EC2 building blocks: **AMI**, **instance type**, **key pair**, storage, **VPC**
+- Launch a public, **SSH-accessible EC2 instance** and connect to it
+- Deploy a website to it with **Ansible** (the assignment)
+- **Tear down** what you created
 
 ---
 
 ## Prerequisites
 
-- Day 3 complete (IAM user, CLI configured, key pair habits)
-- A billing alarm active
+- Day 3 complete (AWS account + billing alarm active)
+- The Ansible project from **Week 3 · Day 1** on your control node (for the assignment)
 
 ---
 
 ## Theory · ~20 min
 
-### 1. VPC — your private network in the cloud
+### 1. IAM — who can do what
 
-A **VPC** (Virtual Private Cloud) is an isolated network you control, defined by a **CIDR block** (e.g. `10.0.0.0/16` — exactly the RFC 1918 ranges from Week 2). Inside it you carve **subnets**, one per availability zone. Every account starts with a **default VPC** so instances "just work," but knowing the pieces matters:
+Before you create resources, understand **IAM** (Identity and Access Management) — the gatekeeper for your whole account. Four concepts:
 
-| Piece | Job |
+| Concept | What it is |
 |---|---|
-| **VPC** | The overall private network (`10.0.0.0/16`) |
-| **Subnet** | A slice in one AZ (`10.0.1.0/24`) |
-| **Route table** | Where traffic for a destination goes |
-| **Internet Gateway (IGW)** | The door to the public internet |
-| **NAT Gateway** | Lets *private* subnets reach out without being reachable |
+| **User** | A person or app with long-lived credentials (password and/or access key) |
+| **Group** | A named set of users; attach a policy once, it applies to all members |
+| **Policy** | A JSON document listing allowed/denied **actions** on **resources** |
+| **Role** | Temporary permissions *assumed* by a service or user — no stored password |
 
-!!! tip "📺 Watch — *AWS Networking Basics: VPC & Subnets* (KodeKloud, ~18 min)"
-    A reputable, chaptered tour of the VPC pieces above.
+**Least privilege**: grant only what's needed, nothing more. Your **root** user (from yesterday) stays locked away with MFA; you do daily work as an IAM user. A policy is just JSON:
 
-    [![AWS VPC & Subnets](https://img.youtube.com/vi/QM63dyA_4Pc/hqdefault.jpg){ width="360" }](https://youtu.be/QM63dyA_4Pc)
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [{
+    "Effect": "Allow",
+    "Action": ["ec2:DescribeInstances", "ec2:StartInstances"],
+    "Resource": "*"
+  }]
+}
+```
 
-    **Chapters:** [what is a VPC](https://youtu.be/QM63dyA_4Pc?t=54) · [subnets: public vs private](https://youtu.be/QM63dyA_4Pc?t=347) · [internet gateway vs NAT](https://youtu.be/QM63dyA_4Pc?t=711)
+**Roles** matter most in the cloud: instead of putting AWS keys *on* an EC2 instance, you attach a **role** and the instance receives rotating temporary credentials automatically.
 
-### 2. Public vs private subnets
+!!! tip "📺 Watch — AWS IAM, explained"
+    Users, groups, policies, and roles — the exact concepts above.
 
-The only real difference: a **public** subnet's route table sends `0.0.0.0/0` to the **internet gateway**; a **private** subnet does not (it uses a NAT gateway for outbound-only). Web/load balancers live in public subnets; databases live in private ones. Isolation by topology — the same idea as Week 2's reverse-proxy-in-front pattern.
+    [![AWS IAM explained](https://img.youtube.com/vi/hAk-7ImN6iM/hqdefault.jpg){ width="360" }](https://www.youtube.com/watch?v=hAk-7ImN6iM)
 
-### 3. Load balancers
+### 2. EC2 and its building blocks
 
-An **Application Load Balancer (ALB)** sits in front of your instances and distributes HTTP(S) requests. Its parts:
+**EC2** (Elastic Compute Cloud) is virtual machines on demand. To launch one you choose:
 
-- **Listener** — what port the ALB accepts on (80/443).
-- **Target group** — the pool of instances it forwards to, with a **health check** (e.g. `GET /` every 30s). Unhealthy targets are pulled out automatically.
-- **Cross-AZ** — targets in multiple AZs mean one zone can fail and traffic keeps flowing.
+- **AMI** (Amazon Machine Image) — the OS template (e.g. Ubuntu 24.04). You can bake your own "golden AMI" with software pre-installed.
+- **Instance type** — the size. `t3.micro` = 2 vCPU / 1 GB RAM, free-tier eligible. Families trade CPU/memory/network differently (`t` = burstable, `m` = balanced, `c` = compute, `r` = memory).
+- **Key pair** — an SSH keypair. AWS stores the public key; you keep the private `.pem` to log in.
+- **Security group** — the instance's stateful firewall. You write **inbound** rules (outbound is allow-all); "SSH enabled" just means a rule opening **port 22**. Same idea as `ufw` in Week 2.
+- **VPC / subnet** — the network the instance lives in. Every account has a **default VPC** so instances "just work"; you'll build one from scratch on Day 5.
+- **Storage** — an **EBS** volume (network-attached virtual SSD, e.g. **gp3**) that persists independently of the instance.
 
-This is the managed, cloud-scale version of the nginx round-robin you built in Week 2 · Day 4.
+!!! tip "💰 Check the price before you launch"
+    Instance types have very different hourly costs. Bookmark this pricing lookup and check any type before you use it — e.g. the `t3.micro` you'll launch today:
 
-### 4. Auto Scaling (concept)
+    👉 **[instances.vantage.sh/aws/ec2/t3.micro](https://instances.vantage.sh/aws/ec2/t3.micro)** — on-demand price, specs, and comparisons for every EC2 instance type.
 
-An **Auto Scaling Group (ASG)** launches/terminates instances to match demand or replace failures, using a **launch template** (the AMI + type + security group) and a target size. Paired with an ALB, it's how production web tiers self-heal and scale. (We'll wire the ALB by hand today; ASG is your stretch goal.)
+!!! tip "📺 Watch — Launch an EC2 instance (AMI, type, key pair)"
+    A full walkthrough of the launch flow you're about to do.
 
-### 5. S3 — object storage
-
-**S3** stores **objects** (files) in **buckets** (globally-unique names). It's not a filesystem — it's a flat key→object store reached over HTTP, used for backups, artifacts, data lakes, and **static website hosting**. Access is denied by default; you open it deliberately with bucket policies.
+    [![Launch an EC2 instance](https://img.youtube.com/vi/5xc8M5WMM6s/hqdefault.jpg){ width="360" }](https://www.youtube.com/watch?v=5xc8M5WMM6s)
 
 ---
 
-## Lab · ~50 min
+## Lab · ~25 min
 
-Using the **default VPC** keeps this focused on the load balancer and S3. (Building a VPC from scratch is the assignment.)
+Do this in the **console** — the launch wizard shows every EC2 building block in one place.
 
-### Step 1 — Two instances in different AZs
+### Launch an EC2 instance
 
-```bash
-# Reuse the AMI lookup + key pair + a web security group (port 80 from anywhere, 22 from your IP)
-# Launch two t3.micro instances tagged golive-web, each with user-data that installs nginx
-# and writes its hostname to the homepage:
-cat > userdata.sh << 'EOF'
-#!/bin/bash
-apt-get update -q && apt-get install -y nginx
-echo "<h1>$(hostname -f)</h1>" > /var/www/html/index.html
-EOF
+**EC2 → Instances → Launch instances**, then set:
 
-for AZ in a b; do
-  aws ec2 run-instances --image-id $AMI --instance-type t3.micro \
-    --key-name golive --security-group-ids $SG \
-    --placement AvailabilityZone=${REGION}${AZ} \
-    --user-data file://userdata.sh \
-    --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=golive-web}]'
-done
-```
+| Setting | Value |
+|---|---|
+| **Name** | `golive-web` |
+| **AMI** | **Ubuntu Server 24.04 LTS** (free-tier eligible) |
+| **Instance type** | **`t3.micro`** |
+| **Key pair** | Create a new key pair `golive` (RSA, `.pem`) — download and keep it |
+| **Network** | **default VPC**, **Auto-assign public IP: Enable** (publicly accessible) |
+| **Security group** | Create one with an **inbound SSH (22)** rule from your IP — this is "SSH enabled" |
+| **Storage** | **8 GiB**, volume type **gp3** (SSD) |
 
-### Step 2 — Create the load balancer (console is clearest here)
-
-1. **EC2 → Load Balancers → Create → Application Load Balancer** `golive-alb`, internet-facing, pick **two subnets in different AZs**.
-2. **Create a target group** `golive-tg` (type: instances, protocol HTTP:80, health check path `/`), **register both instances**.
-3. Point the ALB's **HTTP:80 listener** at `golive-tg`.
-
-### Step 3 — Watch it balance
+Launch it, wait for **Instance state → Running**, copy the **Public IPv4 address**, and connect:
 
 ```bash
-# Grab the ALB DNS name
-aws elbv2 describe-load-balancers --names golive-alb \
-  --query 'LoadBalancers[0].DNSName' --output text
-
-# Hit it repeatedly — the hostname flips between the two instances
-for i in $(seq 1 6); do curl -s http://<alb-dns-name>; done
+chmod 400 golive.pem
+ssh -i golive.pem ubuntu@<public-ip>      # you're on a cloud server
+exit
 ```
 
-Health-check drill: stop nginx on one instance (`sudo systemctl stop nginx`), watch the target group mark it **unhealthy**, and confirm all traffic shifts to the survivor.
+??? note "Prefer the CLI? The same launch in one block"
+    ```bash
+    # SSH key pair + a security group that opens port 22 to your IP
+    aws ec2 create-key-pair --key-name golive --query 'KeyMaterial' \
+      --output text > golive.pem && chmod 400 golive.pem
+    MYIP=$(curl -s https://checkip.amazonaws.com)
+    SG=$(aws ec2 create-security-group --group-name golive-sg \
+      --description "Go Live" --query 'GroupId' --output text)
+    aws ec2 authorize-security-group-ingress --group-id $SG \
+      --protocol tcp --port 22 --cidr ${MYIP}/32
 
-### Step 4 — S3 static site
+    # Latest Ubuntu 24.04 AMI, t3.micro, public IP, 8 GiB gp3
+    AMI=$(aws ec2 describe-images --owners 099720109477 \
+      --filters "Name=name,Values=ubuntu/images/hvm-ssd-gp3/ubuntu-noble-24.04-amd64-server-*" \
+      --query 'sort_by(Images,&CreationDate)[-1].ImageId' --output text)
+    aws ec2 run-instances --image-id $AMI --instance-type t3.micro \
+      --key-name golive --security-group-ids $SG --associate-public-ip-address \
+      --block-device-mappings '[{"DeviceName":"/dev/sda1","Ebs":{"VolumeSize":8,"VolumeType":"gp3"}}]' \
+      --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=golive-web}]'
+    ```
+
+### 🔻 Teardown checklist
+
+Keep the instance if you're doing the assignment next; otherwise tear it down now:
 
 ```bash
-BUCKET=golive-static-$(date +%s)        # must be globally unique
-aws s3 mb s3://$BUCKET
-echo "<h1>Go Live static assets</h1>" > index.html
-aws s3 cp index.html s3://$BUCKET/
-aws s3 website s3://$BUCKET/ --index-document index.html
-# (open bucket policy for public read — see the console "Static website hosting" panel)
-aws s3 ls s3://$BUCKET
+aws ec2 terminate-instances --instance-ids <instance-id>
+aws ec2 delete-security-group --group-id <sg-id>     # after the instance is gone
+aws ec2 delete-key-pair --key-name golive
 ```
 
-### Step 5 — 🔻 Teardown checklist
-
-```bash
-# 1. Delete the listener + load balancer
-aws elbv2 delete-load-balancer --load-balancer-arn <alb-arn>
-# 2. Delete the target group (after the ALB is gone)
-aws elbv2 delete-target-group --target-group-arn <tg-arn>
-# 3. Terminate both instances
-aws ec2 terminate-instances --instance-ids <id1> <id2>
-# 4. Empty + delete the bucket
-aws s3 rb s3://$BUCKET --force
-# 5. Delete the security group
-aws ec2 delete-security-group --group-id $SG
-```
-
-Confirm in the console that **Load Balancers** and **Instances** are empty. The ALB is the line item that costs money — verify it's gone.
+Confirm **EC2 → Instances** shows *terminated* and no volumes linger under **EC2 → Volumes**.
 
 ---
 
 ## Advanced Topics
 
-- **Custom VPC** — build `10.0.0.0/16` with public + private subnets, an IGW, and route tables by hand (the assignment).
-- **HTTPS on the ALB** — attach an ACM certificate to a 443 listener; the ALB terminates TLS (the managed version of Week 2's nginx TLS).
-- **Auto Scaling Group** — a launch template + ASG behind the target group so capacity self-adjusts.
-- **S3 storage classes & lifecycle** — Standard → Infrequent Access → Glacier for cost, with lifecycle rules to transition automatically.
+Adjacent to today — read the linked resource for each:
+
+- **Instance roles (IAM roles for EC2)** — attach a role so code on the box calls AWS with no stored keys → [AWS — IAM roles for Amazon EC2](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/iam-roles-for-amazon-ec2.html)
+- **User data** — a startup script passed at launch that bootstraps the instance on first boot → [AWS — Run commands at launch (user data)](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/user-data.html)
+- **Spot Instances** — cheap interruptible compute for fault-tolerant workloads → [AWS — Spot Instances](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/using-spot-instances.html)
+- **Golden AMIs with Packer** — bake configured images so instances boot ready-to-serve → [Packer — Build an AWS AMI](https://developer.hashicorp.com/packer/tutorials/aws-get-started/aws-get-started-build-image)
 
 ---
 
 ## Assignment
 
-1. **Build a VPC from scratch.** Create `10.0.0.0/16` with two public subnets (one per AZ), an internet gateway, and a route table sending `0.0.0.0/0` to the IGW. Launch an instance into it and SSH in. Submit the CLI/console steps and a diagram.
-2. **Add Auto Scaling.** Put your two web instances behind an ASG (min 2, max 4) attached to the target group. Terminate one instance manually and show the ASG replacing it.
-3. **Cost accounting.** From the Billing console, report what your ALB + instances cost during the lab, and list which resources here are free-tier vs paid.
+**Deploy a website to your EC2 instance with Ansible.** Reuse the `site.zip` from [Week 3 · Day 1 (Ansible I)](day-15.md) — same file, now hosted on a real cloud server.
+
+1. Add an **inbound HTTP (80)** rule to the instance's security group (from anywhere).
+2. Add the instance to an Ansible **inventory** — its public IP, `ansible_user=ubuntu`, and `ansible_ssh_private_key_file` pointing at your `golive.pem`.
+3. Write a **playbook** targeting it that:
+   - installs **nginx**,
+   - downloads `site.zip` from `https://github.com/user-attachments/files/30199374/site.zip` with the **`get_url`** module,
+   - extracts it into the web root `/var/www/html` with the **`unarchive`** module (`remote_src: true`),
+   - ensures **nginx** is started and enabled.
+4. Verify: `curl http://<public-ip>` (and a browser) returns the site.
+
+**Tear down** the instance when you're done. This is the same playbook shape as the Day 1 Vagrant lab — pointed at the cloud instead. Same skills, real host.
 
 ---
 
@@ -164,11 +171,13 @@ Confirm in the console that **Load Balancers** and **Instances** are empty. The 
 
 **Watch**
 
-- 📺 [AWS Networking Basics: VPC & Subnets](https://youtu.be/QM63dyA_4Pc) (KodeKloud) — VPC, subnets, routing, gateways, chaptered
+- 📺 [AWS IAM, explained](https://www.youtube.com/watch?v=hAk-7ImN6iM) — users, groups, roles & policies
+- 📺 [Launch an EC2 instance](https://www.youtube.com/watch?v=5xc8M5WMM6s) — the full launch flow
 
 **Reference**
 
-- [AWS — VPC concepts](https://docs.aws.amazon.com/vpc/latest/userguide/what-is-amazon-vpc.html)
-- [AWS — Application Load Balancers](https://docs.aws.amazon.com/elasticloadbalancing/latest/application/introduction.html)
-- [AWS — Auto Scaling](https://docs.aws.amazon.com/autoscaling/ec2/userguide/what-is-amazon-ec2-auto-scaling.html)
-- [AWS — S3 static website hosting](https://docs.aws.amazon.com/AmazonS3/latest/userguide/WebsiteHosting.html)
+- [instances.vantage.sh](https://instances.vantage.sh/) — EC2 instance pricing & specs lookup
+- [AWS — What is IAM?](https://docs.aws.amazon.com/IAM/latest/UserGuide/introduction.html)
+- [AWS — Amazon EC2](https://docs.aws.amazon.com/ec2/)
+- [AWS CLI reference](https://awscli.amazonaws.com/v2/documentation/api/latest/index.html)
+- [AWS Free Tier](https://aws.amazon.com/free/)

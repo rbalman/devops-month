@@ -38,11 +38,11 @@ Each session is **1–1.5 hours** of focused work: ~20 min theory + ~50 min hand
 |---|---|---|
 | [Day 1](week-03/day-15.md) | Ansible I — Fundamentals & First Playbook | Why config management, agentless/push architecture, idempotency, inventory & groups, ad-hoc commands, plays/tasks/modules, `become`; Vagrant control + managed nodes |
 | [Day 2](week-03/day-16.md) | Ansible II — Variables, Facts, Templates & Roles | Variables & precedence, facts, Jinja2 templates, handlers, loops/`when`, roles, Ansible Galaxy |
-| [Day 3](week-03/day-17.md) | AWS I — Identity & Compute (IAM + EC2) | Regions/AZs, IAM users/groups/roles/policies, EC2, key pairs, security groups, AMIs, EBS; Ansible → EC2 |
-| [Day 4](week-03/day-18.md) | AWS II — Networking, Load Balancing & Storage | VPC/subnets/route tables/IGW, public vs private, ALB + target groups + health checks, Auto Scaling, S3 |
-| [Day 5](week-03/day-19.md) | AWS III — Serverless (Lambda, SQS, SNS, CloudWatch) | Serverless model, Lambda, SQS queues, SNS pub/sub, CloudWatch Logs + EventBridge; S3 → Lambda → SNS pipeline |
-| [Day 6](week-03/day-20.md) | Terraform I — Providers, Resources & Core Workflow | IaC, providers, resources, state, `init`/`plan`/`apply`/`destroy`, variables/`.tfvars`, outputs, locals, data sources |
-| [Day 7](week-03/day-21.md) | Terraform II — Modules, Backends & Capstone | Functions, `count`/`for_each`, modules, remote S3 backend + DynamoDB locking, `fmt`/`validate`, workspaces, capstone |
+| [Day 3](week-03/day-17.md) | AWS I — Cloud Foundations & the Console | IaaS/PaaS/SaaS, major providers, AWS history & market share, regions/AZs, Management Console navigation, billing alarms |
+| [Day 4](week-03/day-18.md) | AWS II — Launch an EC2 Machine + IAM | IAM users/groups/roles/policies, EC2 (AMI, instance type, key pair, security group, VPC), CLI, instance pricing; Ansible → EC2 |
+| [Day 5](week-03/day-19.md) | AWS III — VPC, Route 53, ALB & TLS | Custom VPC/subnets/IGW/route tables, Route 53 hosted zone + domain, ALB + target groups, ACM/HTTPS; other AWS services |
+| [Day 6](week-03/day-20.md) | Terraform I — IaC, HCL & Core Workflow | What IaC is & tools, Terraform/OpenTofu, Terraform vs Ansible, HCL, architecture, variables/locals/resources/data/outputs, `init`/`plan`/`apply`/`destroy` |
+| [Day 7](week-03/day-21.md) | Terraform II — State, Backends & the Day 5 Stack | State file & drift, remote S3 backend, functions & expressions, loops (`count`/`for_each`/`for`), rebuild the Day 5 stack (EC2 + ALB + ACM + Route 53) in Terraform |
 
 ## Week 4 — CI/CD & Monitoring
 

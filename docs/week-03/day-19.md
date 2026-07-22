@@ -1,183 +1,143 @@
-# Day 5 · AWS III — Serverless: Lambda, SQS, SNS & CloudWatch
+# Day 5 · AWS III — VPC, Route 53, ALB & TLS (Go Live for real)
 
-> So far every workload needed a *server* you launch, patch, and pay for around the clock. **Serverless** flips that: you hand AWS a function, and it runs — and bills — only when an event fires. Today you wire an **event-driven pipeline**: an upload to **S3** triggers a **Lambda** function, which publishes to an **SNS** topic that emails you; **SQS** buffers work between services; and **CloudWatch** gives you the logs, metrics, and scheduled events that tie it together. This is the glue of modern cloud architectures.
+> This is the payoff. Over the last two days you got oriented and launched a single server. Today you assemble a **production-shaped web tier and put it live on your own domain, over HTTPS** — the cloud version of everything you built by hand in Week 2. You'll delegate a **subdomain to Route 53**, issue a free **TLS certificate with ACM**, launch **two web servers**, spread traffic across them with an **Application Load Balancer**, and **configure them with Ansible**. Then a reference table of the AWS services this course doesn't cover in depth, so you know what's out there.
 
-!!! note "Mostly free-tier friendly"
-    Lambda (1M requests/mo), SNS, SQS, and CloudWatch have generous always-free tiers — today's lab costs effectively nothing. Still run the teardown so stray subscriptions don't nag you.
+!!! danger "This day creates PAID resources — tear down when done"
+    An **ALB** costs ~**$0.02–0.03/hour** plus data processing, and a **Route 53 hosted zone** is **$0.50/month**. A few cents for a lab — but dollars if left running. **Do the lab in one sitting and run the full teardown at the end.**
 
 ## Learning Objectives
 
-- Explain the **serverless** model and when it beats a running server
-- Write and deploy a **Lambda** function triggered by an event
-- Decouple services with **SQS** (queues) and fan out with **SNS** (pub/sub)
-- Read logs and fire scheduled jobs with **CloudWatch** (Logs + EventBridge)
-- Build an **S3 → Lambda → SNS** pipeline end to end
+- Delegate a **subdomain to Route 53** (hosted zone + NS records at your DNS provider)
+- Issue a free **TLS certificate with ACM** using DNS validation
+- Launch **two public EC2 web servers** across availability zones
+- Put them behind an **Application Load Balancer** and point your subdomain at it, serving **HTTPS**
+- **Configure both instances with Ansible**
+- Know the **other core AWS services** and where to read more
 
 ---
 
 ## Prerequisites
 
-- Day 3 (IAM + CLI). You'll create an execution **role** for Lambda — the role concept from Day 3 in action.
+- Days 3–4 complete (account, billing alarm, EC2 + key-pair habits)
+- **A domain you own** at any DNS provider — you'll delegate the `web` subdomain to Route 53
+- The Ansible project from **Week 3 · Day 1** on your control node (for the final step)
 
 ---
 
 ## Theory · ~20 min
 
-### 1. What "serverless" means
+### 1. VPC — your private network in the cloud
 
-There are still servers — you just don't manage them. You upload code; AWS provisions, scales, and tears down the runtime per invocation. You pay per **request** and **GB-second**, not per hour. Great for event handlers, glue, APIs with spiky traffic; a poor fit for long-running or stateful processes.
+A **VPC** (Virtual Private Cloud) is an isolated network you control, defined by a **CIDR block** (e.g. `10.0.0.0/16` — the RFC 1918 ranges from Week 2). Inside it you carve **subnets**, one per availability zone:
 
-!!! tip "📺 Watch — *Serverless Computing in 100 Seconds* (Fireship)"
-    The serverless model in ~2 minutes (with an optional full tutorial after).
+| Piece | Job |
+|---|---|
+| **VPC** | The overall private network (`10.0.0.0/16`) |
+| **Subnet** | A slice in one AZ (`10.0.1.0/24`) |
+| **Route table** | Where traffic for a destination goes |
+| **Internet Gateway (IGW)** | The door to the public internet |
+| **NAT Gateway** | Lets *private* subnets reach out without being reachable |
 
-    [![Serverless Computing in 100 Seconds](https://img.youtube.com/vi/W_VV2Fx32_Y/hqdefault.jpg){ width="360" }](https://youtu.be/W_VV2Fx32_Y)
+The only real difference between a **public** and **private** subnet: a public subnet's route table sends `0.0.0.0/0` to the **internet gateway**; a private one doesn't. Load balancers and web servers live in public subnets; databases live in private ones.
 
-### 2. Lambda
+!!! tip "📺 Watch — Create a VPC"
+    Building a VPC with subnets, an IGW, and route tables.
 
-A **Lambda function** is code (Python, Node, Go…) plus a trigger. AWS runs it in response to **events** — an S3 upload, an SQS message, an API call, a schedule. Each function has:
+    [![Create a VPC](https://img.youtube.com/vi/ApGz8tpNLgo/hqdefault.jpg){ width="360" }](https://www.youtube.com/watch?v=ApGz8tpNLgo)
 
-- A **handler** — the entry point `def handler(event, context)`.
-- An **execution role** — an IAM role granting what the function may touch (least privilege again).
-- **Environment variables**, memory, and a timeout.
+### 2. Route 53 — DNS & subdomain delegation
 
-```python
-def handler(event, context):
-    for record in event["Records"]:
-        key = record["s3"]["object"]["key"]
-        print(f"New object: {key}")
-    return {"statusCode": 200}
-```
+**Route 53** is AWS's DNS service. Rather than move your whole domain, you **delegate just a subdomain** to it: create a **hosted zone** for `web.example.com`, and Route 53 hands you four **name servers**. At your existing DNS provider (Cloudflare, Namecheap, GoDaddy…) you add **NS records** for `web` pointing at those four servers — from then on Route 53 answers all DNS for `web.example.com`. Records you'll use inside the zone: an **A / alias** record pointing at the ALB, and the **CNAME** ACM asks for to validate the certificate.
 
-### 3. SQS — queues (decoupling)
+!!! tip "📺 Watch — Subdomain delegation to Route 53"
+    Delegating a subdomain to a Route 53 hosted zone. The example delegates from **Cloudflare**, but the same NS-record step works with any DNS provider.
 
-**SQS** is a managed message **queue**. A producer drops messages in; consumers pull them at their own pace. It **decouples** services — if the consumer is slow or down, messages wait safely instead of being lost. One message → one consumer.
+    [![Subdomain delegation to Route 53](https://img.youtube.com/vi/QxFVZGKJjFA/hqdefault.jpg){ width="360" }](https://www.youtube.com/watch?v=QxFVZGKJjFA)
 
-### 4. SNS — pub/sub (fan-out)
+### 3. Application Load Balancer
 
-**SNS** is **publish/subscribe**. A publisher sends to a **topic**; every **subscriber** (email, SMS, Lambda, SQS queue) gets a copy. One message → many consumers. SQS = work distribution; SNS = broadcast. They're often combined (SNS → several SQS queues) in the "fan-out" pattern.
+An **ALB** sits in front of your instances and distributes HTTP(S) requests. Its parts:
 
-!!! tip "📺 Watch — *Back to Basics: Fan-Out with SNS, SQS & Lambda* (AWS, ~5 min)"
-    Straight from AWS — the exact SNS + SQS + Lambda pattern behind today's pipeline.
+- **Listener** — the port the ALB accepts on (80/443) and what it does with a request.
+- **Target group** — the pool of instances it forwards to, with a **health check** (e.g. `GET /` every 30s). Unhealthy targets are pulled out automatically.
+- **Cross-AZ** — targets in multiple AZs mean one zone can fail and traffic keeps flowing.
 
-    [![Fan-Out with SNS, SQS & Lambda](https://img.youtube.com/vi/CEj0yyubNgQ/hqdefault.jpg){ width="360" }](https://youtu.be/CEj0yyubNgQ)
+This is the managed, cloud-scale version of the nginx round-robin from Week 2 · Day 4.
 
-### 5. CloudWatch
+!!! tip "📺 Watch — EC2 instances behind an ALB"
+    Registering instances in a target group and routing through an ALB.
 
-**CloudWatch** is the observability layer:
+    [![EC2 and ALB](https://img.youtube.com/vi/ZGGpEwThhrM/hqdefault.jpg){ width="360" }](https://www.youtube.com/watch?v=ZGGpEwThhrM)
 
-- **Logs** — every Lambda's `print`/stdout lands in a log group.
-- **Metrics & Alarms** — numeric signals (CPU, invocation count, errors) you can alarm on.
-- **Events / EventBridge** — a rule engine: run a Lambda **on a schedule** (cron) or when an AWS event matches a pattern.
+### 4. ACM — TLS certificates
+
+**AWS Certificate Manager (ACM)** issues free, auto-renewing TLS certificates. You request a cert for your domain, prove ownership by adding a **DNS validation record** (one click if the domain is in Route 53), then attach the cert to the ALB's **HTTPS (443) listener**. The ALB **terminates TLS** — decrypting requests before forwarding to your instances — the managed version of the nginx TLS you configured by hand in Week 2.
+
+!!! tip "📺 Watch — ACM certificate + HTTPS"
+    Requesting a certificate and serving your site over HTTPS.
+
+    [![ACM and SSL](https://img.youtube.com/vi/_bEPuvrjB5Y/hqdefault.jpg){ width="360" }](https://www.youtube.com/watch?v=_bEPuvrjB5Y)
 
 ---
 
-## Lab · ~50 min
+## Lab · ~60 min
 
-### Step 1 — Execution role for Lambda
+Build the setup below. This lab gives you the **specs** — the *how* is in the video walkthroughs in the Theory section above. Everything runs in your account's **default VPC**.
 
-Create an IAM role `golive-lambda-role` the Lambda service can assume, with the managed policies **`AWSLambdaBasicExecutionRole`** (for logs) and **`AmazonSNSFullAccess`** (to publish). Note its ARN.
+![Day 3 architecture — users reach a Route 53 record for web.example.com, which points at an Application Load Balancer inside the VPC; the ALB uses a TLS certificate from ACM and load-balances across two EC2 instances (Web1, Web2), both configured by an Admin node with Ansible.](images/day-19-architecture.png){ width="720" }
 
-### Step 2 — An SNS topic you subscribe to
+Create these components, in order:
 
-```bash
-TOPIC=$(aws sns create-topic --name golive-alerts --query 'TopicArn' --output text)
-aws sns subscribe --topic-arn $TOPIC --protocol email \
-  --notification-endpoint you@example.com
-# ✋ check your inbox and CONFIRM the subscription
-```
+1. **Route 53 hosted zone** — for the subdomain `web.example.com`; delegate it by adding its NS records at your existing DNS provider.
+2. **ACM certificate** — a public TLS certificate for `web.example.com`, DNS-validated (same region as the ALB).
+3. **Two public EC2 instances** — Ubuntu 24.04, `t3.micro`, default VPC, two AZs, public IP, key pair `golive`, security group allowing **80** and **22**. Leave them bare — Ansible configures them in step 6.
+4. **Application Load Balancer** — internet-facing, across both AZs, with a target group (HTTP :80, health check `/`) registering both instances; an **HTTPS :443** listener using the ACM cert, and **HTTP :80 → 443** redirect.
+5. **Route 53 record** — an **A / alias** record `web.example.com → the ALB`.
+6. **Configure the instances with Ansible** — from your control node, run a playbook that installs **Docker** (e.g. the `geerlingguy.docker` role) and runs an **nginx container port-mapped `80:80`** on each instance, so the ALB's target group health-checks pass and traffic flows.
 
-### Step 3 — Deploy the Lambda
+**Done when:** `https://web.example.com` loads with a valid padlock, served through the ALB by the nginx containers on both instances.
 
-```bash
-cat > handler.py << 'EOF'
-import os, boto3
-sns = boto3.client("sns")
-TOPIC = os.environ["TOPIC_ARN"]
+### 🔻 Teardown checklist (important — these cost money)
 
-def handler(event, context):
-    for r in event.get("Records", []):
-        key = r["s3"]["object"]["key"]
-        sns.publish(TopicArn=TOPIC, Subject="New upload",
-                    Message=f"Object uploaded to S3: {key}")
-    return {"statusCode": 200}
-EOF
-zip function.zip handler.py
+Delete, in order: **ALB → target group → both EC2 instances → security group**. Then remove the `web.example.com` **record** (and the **hosted zone** if you're done — it's $0.50/month while it exists). The ACM certificate is free; leave or delete it. Confirm **Load Balancers** and **Instances** are empty.
 
-aws lambda create-function --function-name golive-notify \
-  --runtime python3.12 --handler handler.handler \
-  --role <golive-lambda-role-arn> \
-  --environment "Variables={TOPIC_ARN=$TOPIC}" \
-  --zip-file fileb://function.zip
-```
+---
 
-### Step 4 — Wire S3 → Lambda
+## Other important AWS services
 
-```bash
-BUCKET=golive-uploads-$(date +%s)
-aws s3 mb s3://$BUCKET
+This course covers the foundational compute + networking layer. Here are the other services you'll meet constantly in the wild — one line each, with the official docs:
 
-# Allow S3 to invoke the function
-aws lambda add-permission --function-name golive-notify \
-  --statement-id s3invoke --action lambda:InvokeFunction \
-  --principal s3.amazonaws.com --source-arn arn:aws:s3:::$BUCKET
-
-# Configure the bucket to notify the Lambda on object-created
-aws s3api put-bucket-notification-configuration --bucket $BUCKET \
-  --notification-configuration '{"LambdaFunctionConfigurations":[{
-    "LambdaFunctionArn":"<golive-notify-arn>","Events":["s3:ObjectCreated:*"]}]}'
-```
-
-### Step 5 — Fire the pipeline
-
-```bash
-echo "hello serverless" > test.txt
-aws s3 cp test.txt s3://$BUCKET/
-# → within seconds you receive an EMAIL from SNS
-```
-
-Read the logs the function produced:
-
-```bash
-aws logs tail /aws/lambda/golive-notify --since 5m
-```
-
-### Step 6 — A scheduled job (EventBridge)
-
-Create a rule that runs any Lambda every 5 minutes:
-
-```bash
-aws events put-rule --name golive-cron --schedule-expression "rate(5 minutes)"
-# add the Lambda as the rule's target + grant events permission to invoke it
-```
-
-### Step 7 — 🔻 Teardown checklist
-
-```bash
-aws lambda delete-function --function-name golive-notify
-aws sns delete-topic --topic-arn $TOPIC
-aws s3 rb s3://$BUCKET --force
-aws events delete-rule --name golive-cron            # remove targets first
-aws iam delete-role --role-name golive-lambda-role   # detach policies first
-```
-
-Confirm no lingering **SNS subscriptions** (they'll keep emailing) and no **EventBridge rules** (they keep invoking).
+| Service | What it is | Docs |
+|---|---|---|
+| **S3** | Object storage — files in buckets, reached over HTTP; backups, artifacts, static sites | [docs](https://docs.aws.amazon.com/s3/) |
+| **RDS** | Managed relational databases (Postgres, MySQL) — backups, patching, failover handled for you | [docs](https://docs.aws.amazon.com/rds/) |
+| **Lambda** | Serverless functions — run code per event, pay per request, no server to manage | [docs](https://docs.aws.amazon.com/lambda/) |
+| **SQS** | Managed message **queue** — decouple services; one message → one consumer | [docs](https://docs.aws.amazon.com/sqs/) |
+| **SNS** | **Pub/sub** notifications — one message → many subscribers (email, SMS, Lambda) | [docs](https://docs.aws.amazon.com/sns/) |
+| **CloudWatch** | Metrics, logs, alarms, dashboards — the observability layer for everything | [docs](https://docs.aws.amazon.com/cloudwatch/) |
+| **CloudTrail** | Audit log of every API call in your account — who did what, when | [docs](https://docs.aws.amazon.com/cloudtrail/) |
+| **DynamoDB** | Managed serverless NoSQL key-value / document database at any scale | [docs](https://docs.aws.amazon.com/dynamodb/) |
+| **ECR / ECS / EKS** | Container registry, and container orchestration (ECS = AWS-native, EKS = Kubernetes) | [ECR](https://docs.aws.amazon.com/ecr/) · [ECS](https://docs.aws.amazon.com/ecs/) · [EKS](https://docs.aws.amazon.com/eks/) |
+| **Secrets Manager** | Store and rotate secrets (DB passwords, API keys) instead of hardcoding them | [docs](https://docs.aws.amazon.com/secretsmanager/) |
 
 ---
 
 ## Advanced Topics
 
-- **Fan-out** — subscribe two SQS queues to one SNS topic; each downstream service drains its own queue independently.
-- **Dead-letter queues** — an SQS queue that catches messages a consumer repeatedly fails to process, so nothing is silently lost.
-- **Lambda + API Gateway** — expose a function as an HTTP endpoint to build a serverless API.
-- **Alarms** — a CloudWatch alarm on the Lambda `Errors` metric that publishes to your SNS topic when the function starts failing.
+Adjacent to today — read the linked resource for each:
+
+- **Private subnets & Session Manager** — reach private hosts via a bastion or SSM, with no public IP → [AWS — Session Manager](https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager.html)
+- **Auto Scaling Groups** — a launch template + ASG behind the target group so capacity self-adjusts and self-heals → [AWS — What is EC2 Auto Scaling?](https://docs.aws.amazon.com/autoscaling/ec2/userguide/what-is-amazon-ec2-auto-scaling.html)
+- **HTTP→HTTPS redirects on the ALB** — redirect listener actions so every request ends up encrypted → [AWS — ALB listeners & redirect actions](https://docs.aws.amazon.com/elasticloadbalancing/latest/application/load-balancer-listeners.html)
+- **Route 53 routing policies** — weighted, latency, failover, and geolocation routing → [AWS — Choosing a routing policy](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/routing-policy.html)
 
 ---
 
 ## Assignment
 
-1. **Add a queue.** Insert SQS between S3 and processing: S3 → SNS → SQS, and write a second Lambda that drains the queue. Explain why the queue makes the system more resilient than S3 → Lambda directly.
-2. **Alarm yourself.** Create a CloudWatch alarm on `golive-notify`'s error count that notifies your SNS topic. Force an error (break the handler) and show the alarm firing.
-3. **Compare.** In a short paragraph, contrast SQS and SNS: message delivery model, number of consumers, and one real use case for each.
+**Deploy `site.zip` to your Day 3 stack.** Extend your Ansible playbook so the nginx container on each instance serves the **`site.zip`** from [Week 3 · Day 1](day-15.md) (`https://github.com/user-attachments/files/30199374/site.zip`) on **port 80** — the same Docker + nginx pattern as the [Day 2 assignment](day-16.md#assignment), mapped to host port **80** instead of 8080. When you're done, **`https://web.example.com` should serve your site**, load-balanced across both instances behind the ALB.
+
+Submit: the live URL (while it's up), a screenshot showing the **padlock + your site**, and `curl -s https://web.example.com` run a few times showing it reaches both instances.
 
 ---
 
@@ -185,13 +145,14 @@ Confirm no lingering **SNS subscriptions** (they'll keep emailing) and no **Even
 
 **Watch**
 
-- 📺 [Serverless Computing in 100 Seconds](https://youtu.be/W_VV2Fx32_Y) (Fireship) — the model, fast
-- 📺 [Back to Basics: Fan-Out with SNS, SQS & Lambda](https://youtu.be/CEj0yyubNgQ) (AWS) — our exact pipeline, from the source
-- 📺 [AWS Lambda: Getting Started](https://youtu.be/RtiWU1DrMaM) (KodeKloud) — a chaptered hands-on deep dive
+- 📺 [Create a VPC](https://www.youtube.com/watch?v=ApGz8tpNLgo)
+- 📺 [Subdomain delegation to Route 53](https://www.youtube.com/watch?v=QxFVZGKJjFA)
+- 📺 [EC2 behind an ALB](https://www.youtube.com/watch?v=ZGGpEwThhrM)
+- 📺 [ACM certificate + HTTPS](https://www.youtube.com/watch?v=_bEPuvrjB5Y)
 
 **Reference**
 
-- [AWS — Lambda](https://docs.aws.amazon.com/lambda/latest/dg/welcome.html)
-- [AWS — SQS](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/welcome.html) · [SNS](https://docs.aws.amazon.com/sns/latest/dg/welcome.html)
-- [AWS — CloudWatch](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/WhatIsCloudWatch.html) · [EventBridge](https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-what-is.html)
-- [Serverless patterns collection](https://serverlessland.com/patterns) — copy-pasteable event-driven designs
+- [AWS — VPC concepts](https://docs.aws.amazon.com/vpc/latest/userguide/what-is-amazon-vpc.html)
+- [AWS — Route 53](https://docs.aws.amazon.com/route53/)
+- [AWS — Application Load Balancers](https://docs.aws.amazon.com/elasticloadbalancing/latest/application/introduction.html)
+- [AWS — Certificate Manager](https://docs.aws.amazon.com/acm/)

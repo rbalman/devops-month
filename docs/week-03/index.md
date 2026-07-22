@@ -9,14 +9,14 @@ This week **Operation: Go Live goes to the cloud** — you'll configure servers 
 
 **AWS** — the cloud primitives, by hand:
 
-- [Day 3 · AWS I — Identity & Compute (IAM + EC2)](day-17.md) — regions/AZs, IAM users/groups/roles/policies, EC2, key pairs, security groups, AMIs — then run your Ansible playbook against a real EC2 host.
-- [Day 4 · AWS II — Networking, Load Balancing & Storage](day-18.md) — VPC/subnets/route tables, public vs private, an Application Load Balancer across AZs, Auto Scaling, and S3.
-- [Day 5 · AWS III — Serverless (Lambda, SQS, SNS, CloudWatch)](day-19.md) — event-driven architecture: an S3 → Lambda → SNS pipeline, queues, pub/sub, logs, and scheduled events.
+- [Day 3 · AWS I — Cloud Foundations & the Console](day-17.md) — IaaS/PaaS/SaaS, major providers, AWS history & market, regions/AZs, and navigating the Management Console; create an account and set a billing alarm.
+- [Day 4 · AWS II — Launch an EC2 Machine + IAM](day-18.md) — IAM users/groups/roles/policies, then launch an EC2 instance (AMI, instance type, key pair, security group, VPC) and point yesterday's Ansible playbook at it.
+- [Day 5 · AWS III — VPC, Route 53, ALB & TLS](day-19.md) — build a VPC, delegate a domain to Route 53, load-balance across AZs with an ALB, and serve HTTPS with an ACM certificate — Go Live, for real.
 
 **Terraform** — infrastructure as code:
 
-- [Day 6 · Terraform I — Providers, Resources & Core Workflow](day-20.md) — declarative IaC, providers, resources, state, `init/plan/apply/destroy`, variables, outputs, locals, and data sources.
-- [Day 7 · Terraform II — Modules, Backends & Capstone](day-21.md) — functions, `for_each`, reusable modules, a remote S3 backend with locking, and an end-to-end capstone tying Terraform + Ansible together.
+- [Day 6 · Terraform I — IaC, HCL & Core Workflow](day-20.md) — what IaC is, Terraform vs OpenTofu, Terraform vs Ansible, HCL, architecture, variables/locals/resources/data/outputs, and `init/plan/apply/destroy`.
+- [Day 7 · Terraform II — State, Backends & the Day 5 Stack](day-21.md) — the state file, a remote S3 backend, functions & expressions, loops (`count`/`for_each`/`for`), and rebuilding the Day 5 web tier (2× EC2 + ALB + ACM + Route 53) in Terraform.
 
 !!! warning "Mind the meter"
     This week creates real AWS resources. Everything is designed to fit the **Free Tier**, but load balancers, NAT gateways, and idle IPs cost money — **every AWS lab ends with a teardown checklist. Run it.**

@@ -1,89 +1,40 @@
-# Day 7 · Terraform II — Functions, Modules, Backends & Capstone
+# Day 7 · Terraform II — State, Backends & the Day 5 Stack
 
-> Day 6 gave you one flat config for one stack. Real infrastructure is bigger and *repeated* — dev/staging/prod, many services, a whole team editing it. Today you make Terraform **reusable and collaborative**: **functions** and `for_each` to stop copy-pasting, **modules** to package a stack into a callable unit, and a **remote backend** so state lives safely in S3 with a lock so two people can't corrupt it. Then the **capstone**: the entire Go Live web tier — network, security group, instances — as one reusable module you can stand up or tear down in a single command.
+> Day 6 built one instance in a flat config with **local** state. Real teams need more: state that lives somewhere safe and shared, ways to compute values, and a way to stamp out *many* resources without copy-paste. Today you go deeper on **state**, move it to an **S3 backend**, learn **functions & expressions** and **loops** — then the payoff: rebuild the **entire Day 5 architecture** (two web servers, an ALB, a TLS certificate, and a Route 53 record) as Terraform code that stands up or tears down in one command.
 
 !!! warning "Destroy at the end"
-    The capstone builds several billable resources. `terraform destroy` when you're done — and this time you'll appreciate that it cleans up *everything* the module made.
+    Today's lab builds several billable resources (ALB, instances). `terraform destroy` when you're done — and this time you'll appreciate that it cleans up *everything* in one shot.
 
 ## Learning Objectives
 
-- Use **functions** and **expressions** to compute values
-- Create many resources with **`count`** and **`for_each`**
-- Package infrastructure as a reusable **module** with inputs and outputs
-- Store state in a **remote backend** (S3) with **locking** (DynamoDB)
-- Keep code clean with **`fmt`**, **`validate`**, and **workspaces**
-- **Capstone:** deploy a complete, reproducible web tier
+- Understand the **state file** in depth — what it holds, drift, and why it's sensitive
+- Store state in a **remote S3 backend** with locking
+- Compute values with **functions & expressions**
+- Create many resources with **loops** (`count`, `for_each`, `for`)
+- **Lab:** reproduce the Day 5 web tier (2× EC2 + ALB + ACM + Route 53) entirely in Terraform
 
 ---
 
 ## Prerequisites
 
 - Day 6 complete (Terraform installed, core workflow understood)
-- AWS CLI configured; the `~/tf-golive` project as a starting point
+- Day 5 done at least once by hand — you have a **Route 53 hosted zone** for `web.example.com`
+- AWS CLI configured
 
 ---
 
 ## Theory · ~20 min
 
-### 1. Functions & expressions
+### 1. State & the state file (deeper)
 
-Terraform's language (HCL) has built-in **functions** for strings, lists, maps, math, and more:
+Terraform records everything it created in a **state file** (`terraform.tfstate`) — a JSON map from each resource address (`aws_instance.web`) to its real-world ID and attributes. On every `plan`, Terraform diffs **your code ↔ state ↔ reality** and does the minimum to reconcile.
 
-```hcl
-name       = "${local.project}-${var.env}"     # interpolation
-upper_name = upper(var.env)                      # → "PROD"
-azs        = slice(data.aws_availability_zones.all.names, 0, 2)
-cidr       = cidrsubnet("10.0.0.0/16", 8, 1)     # → 10.0.1.0/24
-```
+Two things to internalize:
 
-### 2. `count` and `for_each`
+- **Drift** — when reality changes outside Terraform (someone edits a rule in the console), state no longer matches. `terraform plan` detects it and proposes to put it back.
+- **State is sensitive** — it can contain secrets (passwords, keys) in plain text. Never commit it to git, never hand-edit it; use `terraform state` subcommands.
 
-Stop copy-pasting resources. **`count`** makes N identical copies; **`for_each`** iterates a map/set for named, stable instances:
-
-```hcl
-resource "aws_instance" "web" {
-  for_each      = toset(["web1", "web2"])
-  ami           = data.aws_ami.ubuntu.id
-  instance_type = "t3.micro"
-  tags          = { Name = each.key }
-}
-```
-
-`for_each` is preferred when items have identity (removing one doesn't renumber the rest).
-
-### 3. Modules
-
-A **module** is a folder of `.tf` files with **input variables** and **outputs** — a reusable component you call with a `module` block:
-
-```hcl
-module "web_tier" {
-  source        = "./modules/web-tier"
-  instance_count = 2
-  env            = "prod"
-}
-
-output "alb_dns" { value = module.web_tier.alb_dns }
-```
-
-Every Terraform config is already a "root module"; you're just factoring pieces out. Modules can also come from the **[Terraform Registry](https://registry.terraform.io)**.
-
-### 4. Remote backends & locking
-
-By default state is a local file — fine solo, disastrous for a team. A **remote backend** stores it centrally; a lock stops two applies from clashing:
-
-```hcl
-terraform {
-  backend "s3" {
-    bucket         = "golive-tf-state"
-    key            = "web/terraform.tfstate"
-    region         = "us-east-1"
-    dynamodb_table = "golive-tf-lock"     # lock table
-    encrypt        = true
-  }
-}
-```
-
-Now `terraform apply` reads/writes state in S3 and grabs a DynamoDB lock for the duration.
+Local state is fine solo, but a shared file is a disaster for a team — which is why you move it to a backend.
 
 !!! tip "📺 Watch — *Learn Terraform State in 10 Minutes*"
     A tightly chaptered tour of state and remote backends — today's core topic.
@@ -92,128 +43,296 @@ Now `terraform apply` reads/writes state in S3 and grabs a DynamoDB lock for the
 
     **Chapters:** [local state](https://youtu.be/yhLrH0Q-kq4?t=26) · [remote state](https://youtu.be/yhLrH0Q-kq4?t=226) · [backend configuration](https://youtu.be/yhLrH0Q-kq4?t=370) · [local → remote migration](https://youtu.be/yhLrH0Q-kq4?t=407)
 
-### 5. `fmt`, `validate`, workspaces
+### 2. Remote backend — S3
 
-- **`terraform fmt`** — canonical formatting (run it in CI).
-- **`terraform validate`** — catches errors before touching AWS.
-- **Workspaces** — multiple named states from one config (`terraform workspace new staging`) for env separation.
-
----
-
-## Lab · ~50 min
-
-### Step 1 — Bootstrap the remote backend
-
-```bash
-cd ~/tf-golive
-# Create the state bucket + lock table ONCE (chicken-and-egg: make these first, by CLI)
-aws s3 mb s3://golive-tf-state-$(whoami)
-aws dynamodb create-table --table-name golive-tf-lock \
-  --attribute-definitions AttributeName=LockID,AttributeType=S \
-  --key-schema AttributeName=LockID,KeyType=HASH \
-  --billing-mode PAY_PER_REQUEST
-```
-
-Add the `backend "s3"` block (bucket = the name above) to `main.tf`, then:
-
-```bash
-terraform init          # Terraform offers to migrate local state → S3; say yes
-```
-
-### Step 2 — Factor the stack into a module
-
-```bash
-mkdir -p modules/web-tier
-# Move the SG + instance resources into modules/web-tier/main.tf,
-# with variables.tf (inputs) and outputs.tf (public_ips) inside the module.
-```
-
-`modules/web-tier/variables.tf`:
+A **backend** stores state centrally so a whole team shares one source of truth; a **lock** prevents two `apply`s from clashing:
 
 ```hcl
-variable "instance_count" { type = number, default = 2 }
-variable "my_ip"          { type = string }
-variable "env"            { type = string, default = "dev" }
-```
-
-`modules/web-tier/main.tf` (uses `for_each`/`count` over `instance_count`), `outputs.tf`:
-
-```hcl
-output "public_ips" { value = [for i in aws_instance.web : i.public_ip] }
-```
-
-### Step 3 — Call the module from root
-
-```bash
-cat > main.tf << 'EOF'
 terraform {
-  backend "s3" { bucket = "golive-tf-state-<you>", key = "web/terraform.tfstate", region = "us-east-1", dynamodb_table = "golive-tf-lock", encrypt = true }
-  required_providers { aws = { source = "hashicorp/aws", version = "~> 5.0" } }
+  backend "s3" {
+    bucket       = "golive-tf-state-<you>"
+    key          = "web/terraform.tfstate"
+    region       = "us-east-1"
+    encrypt      = true
+    use_lockfile = true         # S3-native state locking (Terraform 1.10+)
+  }
 }
-provider "aws" { region = "us-east-1" }
+```
 
-module "web_tier" {
-  source         = "./modules/web-tier"
-  instance_count = 2
-  my_ip          = var.my_ip
-  env            = "prod"
+The bucket must exist **before** `init` (chicken-and-egg — you create it once with the CLI). `use_lockfile` keeps the lock in S3 itself; older setups used a separate **DynamoDB** table (`dynamodb_table = "..."`) instead.
+
+### 3. Functions & expressions
+
+HCL has built-in **functions** for strings, lists, maps, math, and more, plus **conditional** expressions:
+
+```hcl
+name    = "${local.project}-${var.env}"           # interpolation
+subnets = slice(data.aws_subnets.default.ids, 0, 2)  # first two subnet IDs
+size    = var.env == "prod" ? "t3.small" : "t3.micro"  # conditional
+```
+
+### 4. Loops — `count`, `for_each`, `for`
+
+Stop copy-pasting resources:
+
+```hcl
+# count — N identical copies, indexed [0], [1], ...
+resource "aws_instance" "web" {
+  count         = 2
+  ami           = data.aws_ami.ubuntu.id
+  instance_type = "t3.micro"
+  subnet_id     = element(data.aws_subnets.default.ids, count.index)
+  tags          = { Name = "web-${count.index}" }
 }
 
-output "web_ips" { value = module.web_tier.public_ips }
-EOF
-
-terraform init          # registers the module
-terraform fmt && terraform validate
-terraform apply -var "my_ip=$(curl -s https://checkip.amazonaws.com)"
+# for expression — transform a list into another list
+output "web_ips" {
+  value = [for i in aws_instance.web : i.public_ip]
+}
 ```
 
-### Step 4 — Scale by changing one number
-
-```bash
-# Bump instance_count 2 → 3, then:
-terraform plan -var "my_ip=$(curl -s https://checkip.amazonaws.com)"    # one new instance, nothing else
-```
-
-That single-number change is the whole point of modules.
-
-### Step 5 — 🔻 Capstone teardown
-
-```bash
-terraform destroy -var "my_ip=$(curl -s https://checkip.amazonaws.com)"
-# then remove the backend resources if you're fully done:
-aws dynamodb delete-table --table-name golive-tf-lock
-aws s3 rb s3://golive-tf-state-<you> --force
-```
+Use **`count`** for N interchangeable copies; **`for_each`** when items have stable identity (a map/set) so removing one doesn't renumber the rest.
 
 ---
 
-## Capstone · Infrastructure as Code, end to end
+## Lab · ~60 min
 
-Tie the week together. Deliver a git repo that, from nothing, stands up the Go Live web tier:
+Rebuild the **Day 5 stack** — two web servers behind an ALB, HTTPS via ACM, reachable at `web.example.com` — but this time as code. Work in a fresh dir; put the pieces in `main.tf` (split into files if you prefer).
 
-1. A **Terraform module** that provisions a security group + N EC2 instances (bonus: a VPC + ALB) with a remote S3 backend.
-2. An **Ansible role** (from Days 1–2) that configures nginx + a templated homepage on those instances.
-3. A short **README** with the exact commands: `terraform apply` → grab the output IPs → `ansible-playbook` → `curl` → `terraform destroy`.
+### Step 1 — Bootstrap the S3 backend (once)
 
-The grader should be able to run it, see your site load-balanced across instances, and destroy it — spending pennies. That's the DevOps loop: **provision (Terraform) → configure (Ansible) → verify → destroy.**
+```bash
+mkdir -p ~/tf-day5 && cd ~/tf-day5
+aws s3 mb s3://golive-tf-state-$(whoami)      # note this bucket name
+```
+
+Add the backend block (bucket = the name above) to your `terraform` block, then `terraform init` and let it initialize the remote state.
+
+### Step 2 — Provider, data sources, variables
+
+```hcl
+provider "aws" {
+  region = var.region
+}
+
+data "aws_vpc" "default" {
+  default = true
+}
+data "aws_subnets" "default" {
+  filter {
+    name   = "vpc-id"
+    values = [data.aws_vpc.default.id]
+  }
+}
+data "aws_ami" "ubuntu" {
+  most_recent = true
+  owners      = ["099720109477"]
+  filter {
+    name   = "name"
+    values = ["ubuntu/images/hvm-ssd-gp3/ubuntu-noble-24.04-amd64-server-*"]
+  }
+}
+data "aws_route53_zone" "web" {
+  name = var.domain          # e.g. "web.example.com"
+}
+
+variable "region" {
+  type    = string
+  default = "us-east-1"
+}
+variable "domain" {
+  type        = string
+  description = "The subdomain hosted zone from Day 5, e.g. web.example.com"
+}
+locals {
+  project = "golive"
+}
+```
+
+### Step 3 — Security groups & two instances (a loop)
+
+```hcl
+# ALB security group — 80/443 open to the world
+resource "aws_security_group" "alb" {
+  name   = "${local.project}-alb-sg"
+  vpc_id = data.aws_vpc.default.id
+  ingress {
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+  ingress {
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+# Web security group — port 80 only from the ALB
+resource "aws_security_group" "web" {
+  name   = "${local.project}-web-sg"
+  vpc_id = data.aws_vpc.default.id
+  ingress {
+    from_port       = 80
+    to_port         = 80
+    protocol        = "tcp"
+    security_groups = [aws_security_group.alb.id]
+  }
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+# Two web servers — a count loop across the default subnets
+resource "aws_instance" "web" {
+  count                       = 2
+  ami                         = data.aws_ami.ubuntu.id
+  instance_type               = "t3.micro"
+  subnet_id                   = element(data.aws_subnets.default.ids, count.index)
+  vpc_security_group_ids      = [aws_security_group.web.id]
+  associate_public_ip_address = true
+  user_data                   = "#!/bin/bash\napt-get update -q && apt-get install -y nginx\necho '<h1>Terraform web ${count.index}</h1>' > /var/www/html/index.html"
+  tags                        = { Name = "${local.project}-web-${count.index}" }
+}
+```
+
+### Step 4 — ACM certificate (DNS-validated in Route 53)
+
+```hcl
+resource "aws_acm_certificate" "web" {
+  domain_name       = var.domain
+  validation_method = "DNS"
+}
+
+resource "aws_route53_record" "cert_validation" {
+  for_each = { for o in aws_acm_certificate.web.domain_validation_options : o.domain_name => o }
+  zone_id  = data.aws_route53_zone.web.zone_id
+  name     = each.value.resource_record_name
+  type     = each.value.resource_record_type
+  records  = [each.value.resource_record_value]
+  ttl      = 60
+}
+
+resource "aws_acm_certificate_validation" "web" {
+  certificate_arn         = aws_acm_certificate.web.arn
+  validation_record_fqdns = [for r in aws_route53_record.cert_validation : r.fqdn]
+}
+```
+
+### Step 5 — ALB, target group, listeners
+
+```hcl
+resource "aws_lb" "web" {
+  name               = "${local.project}-alb"
+  load_balancer_type = "application"
+  subnets            = slice(data.aws_subnets.default.ids, 0, 2)
+  security_groups    = [aws_security_group.alb.id]
+}
+
+resource "aws_lb_target_group" "web" {
+  name     = "${local.project}-tg"
+  port     = 80
+  protocol = "HTTP"
+  vpc_id   = data.aws_vpc.default.id
+  health_check { path = "/" }
+}
+
+resource "aws_lb_target_group_attachment" "web" {
+  count            = 2
+  target_group_arn = aws_lb_target_group.web.arn
+  target_id        = aws_instance.web[count.index].id
+}
+
+resource "aws_lb_listener" "https" {
+  load_balancer_arn = aws_lb.web.arn
+  port              = 443
+  protocol          = "HTTPS"
+  certificate_arn   = aws_acm_certificate_validation.web.certificate_arn
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.web.arn
+  }
+}
+
+resource "aws_lb_listener" "http" {
+  load_balancer_arn = aws_lb.web.arn
+  port              = 80
+  protocol          = "HTTP"
+  default_action {
+    type = "redirect"
+    redirect {
+      port        = "443"
+      protocol    = "HTTPS"
+      status_code = "HTTP_301"
+    }
+  }
+}
+```
+
+### Step 6 — Route 53 alias record + outputs
+
+```hcl
+resource "aws_route53_record" "web" {
+  zone_id = data.aws_route53_zone.web.zone_id
+  name    = var.domain
+  type    = "A"
+  alias {
+    name                   = aws_lb.web.dns_name
+    zone_id                = aws_lb.web.zone_id
+    evaluate_target_health = true
+  }
+}
+
+output "alb_dns"  { value = aws_lb.web.dns_name }
+output "web_ips"  { value = [for i in aws_instance.web : i.public_ip] }
+```
+
+### Step 7 — Apply, verify, destroy
+
+```bash
+terraform init
+terraform fmt && terraform validate
+terraform apply -var "domain=web.example.com"     # read the plan, type 'yes'
+
+curl -k https://web.example.com                    # nginx page, load-balanced, over HTTPS
+```
+
+```bash
+terraform destroy -var "domain=web.example.com"    # one command removes the whole stack
+aws s3 rb s3://golive-tf-state-$(whoami) --force   # remove the state bucket when fully done
+```
 
 ---
 
 ## Advanced Topics
 
-- **Module registry & versioning** — publish modules and pin `version = "~> 1.2"` for stability.
-- **`terraform_remote_state`** — one stack reads another's outputs (e.g. network stack → app stack).
-- **CI/CD for Terraform** — `plan` on pull requests, `apply` on merge (Week 4 territory).
-- **Policy as code** — Sentinel/OPA to enforce "no public S3 buckets" before apply.
+Adjacent to today — read the linked resource for each:
+
+- **Modules** — package this whole stack into a reusable, versioned unit with inputs/outputs → [Terraform — Modules](https://developer.hashicorp.com/terraform/language/modules)
+- **Workspaces** — multiple named states from one config for `dev`/`staging`/`prod` → [Terraform — Workspaces](https://developer.hashicorp.com/terraform/language/state/workspaces)
+- **`terraform_remote_state`** — one stack reads another's outputs (network → app) → [Terraform — remote_state data source](https://developer.hashicorp.com/terraform/language/state/remote-state-data)
+- **CI/CD for Terraform** — `plan` on pull requests, `apply` on merge (Week 4 territory) → [Terraform — Automate Terraform with CI/CD](https://developer.hashicorp.com/terraform/tutorials/automation/automate-terraform)
 
 ---
 
 ## Assignment
 
-The **capstone above is the assignment.** Additionally:
+**Deploy `site.zip` into the infrastructure Terraform built.** After `terraform apply` stands up the Day 5 stack, use the `web_ips` output to point **Ansible** at the two instances and deploy the **`site.zip`** from [Week 3 · Day 1](day-15.md) — install Docker + run an **nginx container on port 80** (same setup as the [Day 2 assignment](day-16.md#assignment)), so **`https://web.example.com` serves your site**, load-balanced across both instances.
 
-1. **Two environments.** Use `terraform workspace` (or a `dev.tfvars`/`prod.tfvars` split) to deploy the module twice — `dev` (1 instance) and `prod` (2). Show both live, then destroy both.
-2. **Reflect on the week.** In one page: where does Terraform stop and Ansible begin? When would you reach for each, and why did AWS-by-hand (Days 3–5) make the Terraform code make sense?
+This is the full DevOps loop, end to end: **provision with Terraform → configure with Ansible → verify → `terraform destroy`.**
+
+Submit: the live URL (while it's up), a screenshot showing the **padlock + your site**, and the commands you ran (`terraform apply` → `ansible-playbook` → `terraform destroy`).
 
 ---
 
@@ -225,7 +344,7 @@ The **capstone above is the assignment.** Additionally:
 
 **Reference**
 
-- [Terraform — Modules](https://developer.hashicorp.com/terraform/language/modules)
-- [Terraform — Backends](https://developer.hashicorp.com/terraform/language/settings/backends/s3) · [State locking](https://developer.hashicorp.com/terraform/language/state/locking)
-- [Terraform — Functions](https://developer.hashicorp.com/terraform/language/functions) · [`for_each`](https://developer.hashicorp.com/terraform/language/meta-arguments/for_each)
-- [Terraform Registry](https://registry.terraform.io) — community modules and providers
+- [Terraform — State](https://developer.hashicorp.com/terraform/language/state) · [Backends (S3)](https://developer.hashicorp.com/terraform/language/backend/s3)
+- [Terraform — Functions](https://developer.hashicorp.com/terraform/language/functions) · [Expressions](https://developer.hashicorp.com/terraform/language/expressions)
+- [Terraform — `count`](https://developer.hashicorp.com/terraform/language/meta-arguments/count) · [`for_each`](https://developer.hashicorp.com/terraform/language/meta-arguments/for_each) · [`for` expressions](https://developer.hashicorp.com/terraform/language/expressions/for)
+- [AWS provider — ALB, ACM & Route 53 resources](https://registry.terraform.io/providers/hashicorp/aws/latest/docs)

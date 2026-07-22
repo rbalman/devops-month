@@ -651,11 +651,25 @@ Write a playbook that uses a **community Galaxy role to install Docker**, then r
 1. Install [`geerlingguy.docker`](https://galaxy.ansible.com/ui/standalone/roles/geerlingguy/docker/documentation/) — declare it in a `requirements.yml` and `ansible-galaxy install -r requirements.yml`.
 2. Write a playbook targeting the `web` group that:
    - applies the `geerlingguy.docker` role to install Docker,
-   - deploys a minimal `index.html` containing exactly **`Hello World from Ansible!!!`**,
+   - deploys `index.html` **from a Jinja2 template** (`index.html.j2`) that renders the message *plus the host's uptime at deploy time* — e.g.
+     **`Hello World from Ansible!!!. Last Uptime: up 13 hours, 50 minutes.`** — where the uptime is read from the target host during the run (not hard-coded),
    - runs an **nginx container**, mapping container port 80 to host **port 8080**, with your page mounted as the site root.
-3. Verify: `curl http://192.168.56.30:8080` returns your `Hello World from Ansible!!!` page (repeat for `192.168.56.31`).
+3. Verify: `curl http://192.168.56.30:8080` returns your `Hello World from Ansible!!!. Last Uptime: …` page with the real host uptime (repeat for `192.168.56.31`). **Re-run the playbook** and confirm the uptime reflects the host each deploy.
 
-**Hint:** once Docker is installed, run the container with the `community.docker.docker_container` module:
+**Hint — the uptime:** capture it from the target host with a task, then reference the registered variable in `index.html.j2`:
+
+```yaml
+- name: Read host uptime
+  ansible.builtin.command: uptime -p      # → "up 13 hours, 50 minutes"
+  register: host_uptime
+  changed_when: false
+```
+
+```jinja
+Hello World from Ansible!!!. Last Uptime: {{ host_uptime.stdout }}.
+```
+
+**Hint — the container:** once Docker is installed, run it with the `community.docker.docker_container` module:
 
 ```yaml
 - name: Run nginx in a container

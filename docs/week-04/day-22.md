@@ -59,7 +59,7 @@ EC2 is virtual servers in the cloud. Key concepts:
 
 ```bash
 # Install AWS CLI v2
-curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+curl "https://awscli.amazonaws.com/awscli-exe-linux-$(uname -m).zip" -o "awscliv2.zip"
 unzip awscliv2.zip
 sudo ./aws/install
 
