@@ -642,8 +642,51 @@ Adjacent to today — read the linked resource for each:
 
 ## Assignment
 
-1. **Parameterize with `terraform.tfvars`.** Move `region`, `instance_type`, and `key_name` into a `terraform.tfvars` file, drop the `-var` flags, and re-run the workflow. Submit the `plan` output showing it picked the values up.
-2. **More outputs.** Add outputs for the **instance ID** and the **AMI ID** the data source resolved, then show `terraform output`.
+**Rebuild Day 5's manual stack — entirely in Terraform.**
+
+On the [last day of AWS](day-19.md) you stood up a real, HTTPS web tier *by hand*: a subdomain in Route 53, an ACM certificate, two EC2 web servers behind an Application Load Balancer, all configured with Ansible. It worked — but none of it is reproducible. Now **declare that same architecture in Terraform** so it stands up, and tears down, with one command. Everything you built by clicking, you now write as code.
+
+This is spec-driven, like the Day 5 lab — the *what* is below; you write the *how* from today's building blocks (`data`, `resource`, `variable`, `count`/`for_each`, `output`) plus a few new AWS resource types you'll look up as you go.
+
+!!! danger "This builds PAID resources — destroy when done"
+    An ALB runs ~$0.02–0.03/hour and the Route 53 hosted zone is $0.50/month. Do the assignment in one sitting and finish with `terraform destroy`.
+
+![Terraform-built web tier: a browser reaches a Route 53 DNS record that points at an Application Load Balancer inside the VPC. The ALB has an :80 and a :443 listener (443 using an ACM certificate) fronted by its own security group, and forwards through a target group to two EC2 instances running nginx on port 80, each with its own security group. An Ansible control node configures both instances over SSH.](images/day-20-architecture.png){ width="820" }
+
+### What to build
+
+Reproduce the diagram, all in your account's **default VPC**, on the **Ubuntu 24.04** AMI (reuse the `data.aws_ami.ubuntu` source from the lab):
+
+| # | Component | Terraform resource(s) | Spec |
+|---|---|---|---|
+| 1 | **Two security groups** | `aws_security_group` ×2 | **ALB SG:** allow **80** + **443** from `0.0.0.0/0`. **Web SG:** allow **80 from the ALB SG only**, and **22** from your IP (so Ansible can SSH). Both egress all. |
+| 2 | **Two EC2 web servers** | `aws_instance` (`count = 2`) | Ubuntu 24.04, `t3.micro`, across **two AZs/subnets**, public IP, the **web SG**, and your existing **`golive` key pair** attached (`data.aws_key_pair`) so Ansible can reach them. Leave them bare — Ansible configures nginx. |
+| 3 | **ACM certificate (reuse)** | `data.aws_acm_certificate` | **Don't create one** — issuing + DNS-validating a cert in Terraform is fiddly. **Look up the existing certificate** for `web.example.com` (the one you issued on the last AWS day) with a data source, and attach it to the :443 listener. |
+| 4 | **Application Load Balancer** | `aws_lb` · `aws_lb_target_group` · `aws_lb_target_group_attachment` | Internet-facing, across both AZs, the **ALB SG**. Target group **HTTP :80**, health check `/`; register **both** instances. |
+| 5 | **Listeners** | `aws_lb_listener` ×2 | **:443 HTTPS** using the ACM cert, forwarding to the target group; **:80** forwarding to the target group (or redirecting to :443). |
+| 6 | **Route 53 record** | `aws_route53_record` (+ `data.aws_route53_zone`) | An **A / alias** record `web.example.com` → the ALB. |
+| 7 | **Outputs** | `output` | The ALB DNS name and both instance public IPs (you'll feed the IPs to Ansible). |
+
+### Then configure with Ansible
+
+Terraform provisions; Ansible configures. Using the instance IPs from your Terraform outputs, run your Ansible playbook from the Ansible days to install and run **nginx serving `site.zip` on port 80** — the same pattern as the [Day 2 assignment](day-16.md#assignment); `site.zip` is the one from [Week 3 · Day 1](day-15.md) (`https://github.com/user-attachments/files/30199374/site.zip`). Once the target group's health checks pass, traffic flows.
+
+**Done when:** `https://web.example.com` loads with a valid padlock, served through the ALB by nginx on both instances — every piece built by `terraform apply`, and removed by `terraform destroy`. This is the full DevOps loop end to end: **provision (Terraform) → configure (Ansible) → verify → destroy.**
+
+### Hints
+
+- Every new resource type here has a copy-pasteable example in the [AWS provider docs](https://registry.terraform.io/providers/hashicorp/aws/latest/docs) — search the resource name.
+- Find existing infra with **data sources**: `data.aws_vpc.default`, `data.aws_subnets.default`, `data.aws_route53_zone`, `data.aws_key_pair`, and `data.aws_acm_certificate` for the cert.
+- **Reuse the ACM certificate you already have** — look it up by domain with `data.aws_acm_certificate` (filter for an `ISSUED` cert) and pass its `.arn` to the :443 listener. No need to create or DNS-validate a cert in Terraform.
+- Reference the ALB SG from the web SG's ingress (`security_groups = [aws_security_group.alb.id]`) instead of a CIDR — that's how you say *"only the load balancer may reach port 80."*
+- The Route 53 record is an `alias` block (not a plain A record) — point it at `aws_lb.web.dns_name` / `aws_lb.web.zone_id`.
+
+### Submit
+
+- Your `.tf` files and the `terraform apply` plan summary (the `+` resource count).
+- The live URL while it's up, plus a screenshot showing the **padlock + your site**.
+- `curl -s https://web.example.com` run a few times, showing it reaches both instances.
+- Proof of a clean `terraform destroy`.
 
 ---
 
