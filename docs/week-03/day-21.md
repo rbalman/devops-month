@@ -12,7 +12,7 @@
 - Store state in a modern **remote S3 backend** with **native locking** (`use_lockfile`) — no DynamoDB
 - Explain what **modules** are, how they're structured, and how to source & version them
 - Use **loops** (`count`, `for_each`) and **conditions** to create resources without copy-paste
-- **Lab:** build a simple **VPC + EC2 module** and deploy it as **dev & prod** from `.tfvars` files
+- **Lab:** loop S3 buckets, then build a simple **VPC + EC2 module** and deploy it as **dev & prod** from `.tfvars`
 
 ---
 
@@ -366,7 +366,7 @@ data "aws_availability_zones" "available" {
 
 module "vpc" {
   source  = "terraform-aws-modules/vpc/aws"
-  version = "~> 6.0"   # pin it — latest is 6.6.1
+  version = "~> 6.0"   # pin it — allows any 6.x
 
   name = "golive-vpc"
   cidr = "10.0.0.0/16"
@@ -395,7 +395,7 @@ That ~20-line block builds a complete VPC: the VPC, an **internet gateway** (cre
     Unlike the lab below, `enable_nat_gateway = true` here creates a **NAT gateway** (~$0.045/hour + data) plus an Elastic IP. `single_nat_gateway = true` keeps it to one instead of one per AZ, but it still costs money — `terraform destroy` promptly if you try this.
 
 !!! note "Don't reinvent the VPC"
-    In real projects most teams use the battle-tested [`terraform-aws-modules/vpc/aws`](https://registry.terraform.io/modules/terraform-aws-modules/vpc/aws/latest) from the registry. Today you'll **write your own** smaller version — because building one is the best way to understand what modules like that do under the hood.
+    In real projects most teams use the battle-tested [`terraform-aws-modules/vpc/aws`](https://registry.terraform.io/modules/terraform-aws-modules/vpc/aws/latest) from the registry — which is exactly what [Example 2](#example-2-a-reusable-module-vpc-ec2) of today's lab does. Curious what a VPC module looks like **under the hood**? The repo has a hand-written one at [`examples/terraform/modules/vpc`](https://github.com/rbalman/devops-month/tree/main/examples/terraform/modules/vpc).
 
 ### 5. Loops & conditions
 
@@ -461,13 +461,13 @@ output "all_buckets" {
 
 ```hcl
 locals {
-  instance_type = var.env == "prod" ? "t3.large" : "t3.micro"
+  instance_type = var.environment == "prod" ? "t3.large" : "t3.micro"
 }
 ```
 
 #### 5.4 Conditional creation — `count` of 0 or 1
 
-Combine the two to **toggle a whole resource** on or off (this is exactly how the lab's VPC module makes its NAT gateway optional):
+Combine the two to **toggle a whole resource** on or off — e.g. create a NAT gateway (or an Elastic IP) only in prod:
 
 ```hcl
 resource "aws_eip" "nat" {
@@ -774,21 +774,21 @@ Adjacent to today — read the linked resource for each:
 
 ## Assignment
 
-**Make your VPC module reusable across two environments — and prove state stays isolated.**
+**Take the `webserver` module further — a loop, a third environment, and remote state.**
 
-You built a VPC module and called it once. Now use it the way real teams do: **twice, for two environments, from remote state.**
+Start from your [Example 2](#example-2-a-reusable-module-vpc-ec2) code and extend it. This pulls together everything from today: modules, tfvars, loops, and remote state.
 
-1. **Parameterize.** In a fresh root config, call your `vpc` module **twice** — once named `dev-vpc` (CIDR `10.0.0.0/16`) and once `prod-vpc` (CIDR `10.1.0.0/16`), each with its own public + private subnet CIDRs. No copy-pasting resources — only two `module` blocks that differ by their inputs.
-2. **Remote, locked, versioned state.** Back the config with the **S3 backend** using `use_lockfile` (no DynamoDB), on a bucket with **versioning enabled**. In your write-up, name **three state best practices** from today's table that your setup satisfies and how.
-3. **Verify isolation.** Run `terraform apply`, then `aws ec2 describe-vpcs` to show **two** VPCs with the two different CIDRs. Add an `output` that returns a map of `{ dev = <vpc_id>, prod = <vpc_id> }`.
-4. **Tear down** with `terraform destroy`.
+1. **Add a loop to the module.** Give `webserver` an `instance_count` variable (default `1`) and use **`count`** on the EC2 so the module can create several instances. Output **all** their public IPs with the `[*]` splat.
+2. **Add a third environment.** Write a `staging.tfvars` (`instance_type = "t3.micro"`, `instance_count = 2`) and deploy it. Now three environments come from one module — each is just a `.tfvars` file. (Deploy one environment at a time, as in the lab.)
+3. **Move state to S3.** Add the remote backend from [§3](#3-remote-backend-s3-the-modern-way) — a versioned, encrypted bucket (bootstrap it with §3a) plus `use_lockfile`. In your write-up, name **three** best practices from [§2](#2-best-practices-for-managing-state) your setup satisfies, and how.
+4. **Tear down** with `terraform destroy` and confirm nothing's left.
 
-**Stretch:** flip `enable_nat_gateway = true` for `prod` only, run `terraform plan`, and note how many resources that single boolean adds — then leave it `false` (NAT gateways cost money) and destroy.
+**Stretch:** use the [§5.4](#54-conditional-creation-count-of-0-or-1) conditional-creation pattern to attach an Elastic IP (`aws_eip`) to the instance **only when `environment == "prod"`**.
 
 !!! danger "Destroy when done"
-    The base VPCs are free; a NAT gateway is not. Finish with `terraform destroy`, and remove the state bucket when you're done with the course.
+    EC2 is billable (t3.micro may be free-tier). Finish with `terraform destroy`, and remove the state bucket when you're done with the course.
 
-**Submit:** your `.tf` files (module + root), the `terraform apply` plan summary (the `+` count), the `describe-vpcs` output showing both CIDRs, the three best-practices you satisfied, and proof of a clean `terraform destroy`.
+**Submit:** your module + root + all three `.tfvars` files, the `terraform apply` plan summary (the `+` count), the output showing multiple instance IPs, the three best practices you satisfied, and proof of a clean `terraform destroy`.
 
 ---
 
