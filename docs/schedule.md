@@ -42,7 +42,7 @@ Each session is **1–1.5 hours** of focused work: ~20 min theory + ~50 min hand
 | [Day 4](week-03/day-18.md) | AWS II — Launch an EC2 Machine + IAM | IAM users/groups/roles/policies, EC2 (AMI, instance type, key pair, security group, VPC), CLI, instance pricing; Ansible → EC2 |
 | [Day 5](week-03/day-19.md) | AWS III — VPC, Route 53, ALB & TLS | Custom VPC/subnets/IGW/route tables, Route 53 hosted zone + domain, ALB + target groups, ACM/HTTPS; other AWS services |
 | [Day 6](week-03/day-20.md) | Terraform I — IaC, HCL & Core Workflow | What IaC is & tools, Terraform/OpenTofu, Terraform vs Ansible, HCL, architecture, variables/locals/resources/data/outputs, `init`/`plan`/`apply`/`destroy` |
-| [Day 7](week-03/day-21.md) | Terraform II — State, Backends & the Day 5 Stack | State file & drift, remote S3 backend, functions & expressions, loops (`count`/`for_each`/`for`), rebuild the Day 5 stack (EC2 + ALB + ACM + Route 53) in Terraform |
+| [Day 7](week-03/day-21.md) | Terraform II — State, Backends & Modules | State file & drift, best practices for managing state, remote S3 backend with native locking (`use_lockfile`, no DynamoDB), Terraform modules, build a reusable VPC module |
 
 ## Week 4 — CI/CD & Monitoring
 

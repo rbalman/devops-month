@@ -80,7 +80,7 @@ nav:
     - Day 4 · AWS II — Launch an EC2 Machine + IAM: week-03/day-18.md
     - Day 5 · AWS III — VPC, Route 53, ALB & TLS: week-03/day-19.md
     - Day 6 · Terraform I — IaC, HCL & Core Workflow: week-03/day-20.md
-    - Day 7 · Terraform II — State, Backends & the Day 5 Stack: week-03/day-21.md
+    - Day 7 · Terraform II — State, Backends & Modules: week-03/day-21.md
   - Week 4 — CI/CD & Monitoring: week-04/index.md
   - Resources: resources.md
 

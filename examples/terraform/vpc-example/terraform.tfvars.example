@@ -1,0 +1,3 @@
+# Copy to terraform.tfvars and edit. Terraform auto-loads terraform.tfvars.
+region  = "us-east-1"
+project = "golive"

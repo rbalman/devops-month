@@ -16,7 +16,7 @@ This week **Operation: Go Live goes to the cloud** — you'll configure servers 
 **Terraform** — infrastructure as code:
 
 - [Day 6 · Terraform I — IaC, HCL & Core Workflow](day-20.md) — what IaC is, Terraform vs OpenTofu, Terraform vs Ansible, HCL, architecture, variables/locals/resources/data/outputs, and `init/plan/apply/destroy`.
-- [Day 7 · Terraform II — State, Backends & the Day 5 Stack](day-21.md) — the state file, a remote S3 backend, functions & expressions, loops (`count`/`for_each`/`for`), and rebuilding the Day 5 web tier (2× EC2 + ALB + ACM + Route 53) in Terraform.
+- [Day 7 · Terraform II — State, Backends & Modules](day-21.md) — the state file & drift, best practices for managing state, a modern remote S3 backend with native locking (`use_lockfile`, no DynamoDB), Terraform modules, and building a reusable VPC module.
 
 !!! warning "Mind the meter"
     This week creates real AWS resources. Everything is designed to fit the **Free Tier**, but load balancers, NAT gateways, and idle IPs cost money — **every AWS lab ends with a teardown checklist. Run it.**
