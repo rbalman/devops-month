@@ -1,292 +1,340 @@
-# Day 5 · Monitoring I — Prometheus & Metrics
+# Day 5 · GitOps & the End-to-End Project
+
+> The last four days each automated **one** piece: tests, images, Terraform, Ansible. Today they converge into **the project** — the one you'll put on your résumé. A single git repo holds a **frontend**, a **backend**, a **Postgres database**, the **Terraform** that creates the server, and the **Ansible** that deploys all three as containers on it. And it's all driven by **GitOps**: git is the source of truth, a merge provisions and deploys, and nobody touches a server by hand. This *is* the capstone — everything from here on (monitoring, security) is layered on top of it.
+
+!!! info "One repo, the whole system"
+    App code + infrastructure code + configuration code, together in git. Push a change and the pipeline provisions the infra (Terraform) and deploys the containers (Ansible). That's the end-to-end project.
+
+!!! danger "This builds a billable EC2 instance"
+    Today provisions a real EC2 (may be free-tier eligible). There's a **teardown** at the end — run it when you're done for the day.
 
 ## Learning Objectives
 
-- Understand why monitoring matters and the difference between metrics and logs
-- Run Prometheus and scrape metrics from an application
-- Write PromQL queries to inspect system state
+- State the four **GitOps principles** and why "git as source of truth" matters
+- Distinguish **push-based** GitOps (what we build) from **pull-based** (Argo CD / Flux)
+- Lay out an **end-to-end repo**: frontend, backend, database, Terraform, Ansible
+- Provision an EC2 with **Terraform** and deploy **frontend + backend + Postgres** as containers with **Ansible**
+- **Lab:** a git-driven pipeline — **plan on PR, apply + deploy on merge** — for the whole project
 
 ---
 
-## Theory · ~20 min
+## Prerequisites
 
-### Why Monitoring?
+- **Days 1–4 complete** — CI, image publish (your backend is on GHCR), Terraform-in-CI (incl. the OIDC role), Ansible-in-CI
+- The S3 backend from Week 3
+- A key pair in your AWS region
 
-You can't fix what you can't see. Monitoring answers:
+---
 
-- Is my service up?
-- Is it slow?
-- How much CPU/memory/disk is it using?
-- Did the error rate spike after the last deploy?
+## Theory · ~30 min
 
-A monitoring system that only pages you when users complain is not monitoring — it's user testing in production.
+### 1. What GitOps is
 
-### The Three Pillars of Observability
+**GitOps** is operating your systems by making **git the source of truth** and letting automation keep reality in sync with it. Four principles:
 
-| Pillar | What it is | Tool |
+| # | Principle | Meaning |
 |---|---|---|
-| **Metrics** | Numeric measurements over time | Prometheus + Grafana |
-| **Logs** | Timestamped event records | Loki + Grafana |
-| **Traces** | End-to-end request journeys | Jaeger, Tempo |
+| 1 | **Declarative** | The system is described as *desired state* (Terraform HCL, Ansible YAML) — not scripts of steps |
+| 2 | **Versioned & immutable** | That state lives in git — auditable, revertible. `git revert` is your rollback |
+| 3 | **Applied automatically** | Changes are applied by automation, not humans running commands |
+| 4 | **Continuously reconciled** | Software compares desired (git) vs actual (reality) and corrects drift |
 
-This week covers metrics and logs (traces are an advanced topic).
+The payoff: **git is your audit log, your review gate, and your rollback button.** Who changed the server? `git log`. Roll it back? `git revert`. Approve it first? A pull request. Operations becomes *just software development*.
 
-### Prometheus
+### 2. Push vs pull — an honest distinction
 
-Prometheus is an open-source monitoring system built at SoundCloud, now a CNCF project. It:
-
-- **Pulls** (scrapes) metrics from targets at a configurable interval
-- Stores metrics as time-series data: `metric_name{labels} value timestamp`
-- Provides a query language: **PromQL**
-- Fires alerts via **Alertmanager**
-
-### Metric Types
-
-| Type | Description | Example |
+| | **Push-based (CIOps)** | **Pull-based (true GitOps)** |
 |---|---|---|
-| **Counter** | Only goes up (resets on restart) | `http_requests_total` |
-| **Gauge** | Goes up and down | `memory_usage_bytes` |
-| **Histogram** | Samples observations in buckets | `request_duration_seconds` |
-| **Summary** | Computes quantiles client-side | `rpc_duration_seconds` |
+| Who applies? | A **CI pipeline** pushes changes *out* | An **agent inside the target** pulls them *in* |
+| Trigger | Merge to `main` runs `apply` | Agent notices git ≠ reality and reconciles |
+| Tools | GitHub Actions + Terraform/Ansible | **Argo CD**, **Flux** (Kubernetes) |
 
-### How Prometheus Works
+What you build today is **push-based** — you already built the halves on Days 3–4. **Pull-based GitOps** (Argo CD / Flux) is Kubernetes-native and adds *continuous* reconciliation; it's the natural next step once you learn Kubernetes (Day 7's "what's next").
 
-```
-Your App → /metrics endpoint → Prometheus scrapes it → Stores in TSDB → PromQL queries → Grafana dashboards
+### 3. The end-to-end project
+
+Meet the app. Three containers running side by side on one EC2, plus the code that builds and delivers them:
+
+```text
+                       Internet
+                          │  http://<ec2-ip>
+                          ▼
+        ┌───────────────────────────────────────┐
+        │  EC2  (Terraform-provisioned)          │
+        │                                        │
+        │   ┌──────────┐  /api   ┌────────────┐  │
+        │   │ frontend │────────▶│  backend   │  │
+        │   │  nginx   │         │  Node API  │  │
+        │   └──────────┘         └─────┬──────┘  │
+        │                              │ :5432   │
+        │                        ┌─────▼──────┐  │
+        │                        │  postgres  │  │  (named volume)
+        │                        └────────────┘  │
+        │        docker compose, one network     │
+        └───────────────────────────────────────┘
 ```
 
-`/metrics` returns data like:
+- **frontend** — nginx serving the static UI and proxying `/api` to the backend.
+- **backend** — the Node/Express API from Day 1 (its image is on GHCR from Day 2), reading `DATABASE_URL`.
+- **postgres** — the official Postgres image with a **named volume** so data survives restarts.
+
+They talk over a private **compose network** by service name (`backend` → `db:5432`), so there's no cross-host networking to manage — the simplest thing that's still a real three-tier app.
+
+### 4. One repo, three kinds of code
+
+```text
+sample-app/
+├── frontend/         # static UI (html/css/js) + nginx.conf
+├── backend/          # the Node/Express API (Dockerfile from Day 2)
+├── db/               # init.sql (schema/seed)
+├── terraform/        # the EC2, security group, outputs
+├── ansible/          # role that deploys the compose stack
+└── .github/workflows/  # ci.yml, deploy.yml, gitops.yml
 ```
-# HELP http_requests_total Total HTTP requests
-# TYPE http_requests_total counter
-http_requests_total{method="GET",status="200"} 1027
-http_requests_total{method="POST",status="500"} 3
-```
+
+App code, infrastructure code, and configuration code **in one place, versioned together** — the essence of GitOps. A single PR can change the UI *and* the server size *and* the deploy config, reviewed as one unit.
 
 ---
 
 ## Lab · ~50 min
 
-### Step 1 — Run Prometheus with Docker Compose
+Provision the EC2 with Terraform, deploy the three containers with Ansible, and wire the git-driven pipeline that runs it all.
 
-```bash
-mkdir -p ~/monitoring-labs
-cd ~/monitoring-labs
+!!! important "Reuse your backend + OIDC role"
+    State goes in the S3 backend (key `end-to-end/terraform.tfstate`); AWS auth uses the **OIDC role from Day 3**.
 
-mkdir -p prometheus
+### 1. The infrastructure — Terraform
 
-cat > prometheus/prometheus.yml << 'EOF'
-global:
-  scrape_interval: 15s
-  evaluation_interval: 15s
+Keep it minimal: a security group and one EC2 in your default VPC. **`terraform/main.tf`**:
 
-scrape_configs:
-  - job_name: "prometheus"
-    static_configs:
-      - targets: ["localhost:9090"]
+```hcl
+terraform {
+  required_version = ">= 1.10"
+  required_providers { aws = { source = "hashicorp/aws", version = "~> 6.0" } }
+  backend "s3" {
+    bucket       = "golive-tf-state-<you>"
+    key          = "end-to-end/terraform.tfstate"
+    region       = "us-east-1"
+    encrypt      = true
+    use_lockfile = true
+  }
+}
 
-  - job_name: "node"
-    static_configs:
-      - targets: ["node-exporter:9100"]
+provider "aws" { region = "us-east-1" }
 
-  - job_name: "myapp"
-    static_configs:
-      - targets: ["app:8080"]
-    metrics_path: /metrics
-EOF
+data "aws_ami" "ubuntu" {
+  most_recent = true
+  owners      = ["099720109477"]
+  filter { name = "name", values = ["ubuntu/images/hvm-ssd-gp3/ubuntu-noble-24.04-amd64-server-*"] }
+}
 
-cat > docker-compose.yml << 'EOF'
+resource "aws_security_group" "app" {
+  name        = "end-to-end-app"
+  description = "web + ssh"
+  ingress { description = "HTTP",  from_port = 80, to_port = 80, protocol = "tcp", cidr_blocks = ["0.0.0.0/0"] }
+  ingress { description = "SSH",   from_port = 22, to_port = 22, protocol = "tcp", cidr_blocks = ["0.0.0.0/0"] }
+  egress  { from_port = 0, to_port = 0, protocol = "-1", cidr_blocks = ["0.0.0.0/0"] }
+}
+
+resource "aws_instance" "app" {
+  ami                    = data.aws_ami.ubuntu.id
+  instance_type          = "t3.small"          # room for 3 containers
+  key_name               = var.key_name
+  vpc_security_group_ids = [aws_security_group.app.id]
+  tags                   = { Name = "end-to-end-app" }
+}
+
+output "public_ip" { value = aws_instance.app.public_ip }
+```
+
+!!! note "We start simple on purpose"
+    SSH open to the world and no HTTPS is fine to *learn* on — but it's exactly what **Day 7 (security)** hardens: locking down the security group, adding TLS, scanning the images, and more. Build it working today; make it safe on Day 7.
+
+### 2. The deployment — Ansible, three containers
+
+**`ansible/roles/app/templates/docker-compose.yml.j2`** — the whole app on one network:
+
+```yaml
 services:
-  prometheus:
-    image: prom/prometheus:latest
-    container_name: prometheus
-    ports:
-      - "9090:9090"
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: appuser
+      POSTGRES_PASSWORD: "{{ db_password }}"
+      POSTGRES_DB: appdb
     volumes:
-      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - prometheus_data:/prometheus
-    command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--storage.tsdb.retention.time=7d'
+      - dbdata:/var/lib/postgresql/data
+      - /opt/app/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
 
-  node-exporter:
-    image: prom/node-exporter:latest
-    container_name: node-exporter
-    ports:
-      - "9100:9100"
+  backend:
+    image: {{ backend_image }}          # ghcr.io/<you>/sample-app/api:latest
+    environment:
+      DATABASE_URL: "postgres://appuser:{{ db_password }}@db:5432/appdb"
+      PORT: "3000"
+    depends_on: [db]
+
+  frontend:
+    image: nginx:1.27-alpine
+    ports: ["80:80"]
     volumes:
-      - /proc:/host/proc:ro
-      - /sys:/host/sys:ro
-      - /:/rootfs:ro
-    command:
-      - '--path.procfs=/host/proc'
-      - '--path.sysfs=/host/sys'
+      - /opt/app/frontend:/usr/share/nginx/html:ro
+      - /opt/app/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on: [backend]
 
 volumes:
-  prometheus_data:
-EOF
-
-docker compose up -d
-
-# Verify
-docker compose ps
-curl http://localhost:9090/-/healthy
-curl http://localhost:9100/metrics | head -20
+  dbdata:
 ```
 
-### Step 2 — Explore the Prometheus UI
+**`ansible/roles/app/tasks/main.yml`** — install Docker, copy the app files, launch:
 
-Open [http://localhost:9090](http://localhost:9090) in your browser.
+```yaml
+- name: Install Docker + Compose plugin
+  ansible.builtin.apt: { name: [docker.io, docker-compose-v2], update_cache: true }
+  become: true
 
-Go to **Status → Targets** — you should see `prometheus` and `node` as UP.
+- name: Log in to GHCR
+  community.docker.docker_login:
+    registry: ghcr.io
+    username: "{{ ghcr_user }}"
+    password: "{{ ghcr_token }}"
+  become: true
 
-In the query box, try these PromQL expressions:
+- name: Copy frontend, nginx config, and db init
+  ansible.builtin.copy: { src: "{{ item.src }}", dest: "{{ item.dest }}" }
+  loop:
+    - { src: "../frontend/",   dest: "/opt/app/frontend/" }
+    - { src: "../frontend/nginx.conf", dest: "/opt/app/nginx.conf" }
+    - { src: "../db/init.sql", dest: "/opt/app/init.sql" }
+  become: true
 
-```promql
-# Current CPU usage across all cores
-rate(node_cpu_seconds_total{mode!="idle"}[5m])
+- name: Template the compose file
+  ansible.builtin.template: { src: docker-compose.yml.j2, dest: /opt/app/docker-compose.yml }
+  become: true
 
-# Total memory available
-node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes * 100
-
-# Disk usage percentage
-(1 - node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) * 100
-
-# Prometheus itself: rate of samples ingested
-rate(prometheus_tsdb_head_samples_appended_total[1m])
+- name: Start the stack
+  community.docker.docker_compose_v2: { project_src: /opt/app, pull: always }
+  become: true
 ```
 
-### Step 3 — Instrument your application
+Secrets (`db_password`, `ghcr_token`) live in an **Ansible Vault** file, never plain YAML (Day 4's pattern). The `nginx.conf` in `frontend/` serves the static files and proxies `/api/` to `http://backend:3000`.
 
-Add Prometheus metrics to the Flask app from Day 4:
+### 3. The GitOps pipeline
 
-```bash
-mkdir -p ~/monitoring-labs/app
+**`.github/workflows/gitops.yml`** — combine the Terraform (Day 3) and Ansible (Day 4) mechanics into one git-driven flow:
 
-cat > ~/monitoring-labs/app/app.py << 'EOF'
-from flask import Flask, jsonify, Response
-from prometheus_client import Counter, Histogram, Gauge, generate_latest, CONTENT_TYPE_LATEST
-import time
-import os
+```yaml
+name: GitOps
 
-app = Flask(__name__)
+on:
+  pull_request:
+    paths: ["terraform/**", "ansible/**"]
+  push:
+    branches: [main]
+    paths: ["terraform/**", "ansible/**"]
 
-# Define metrics
-REQUEST_COUNT = Counter(
-    'http_requests_total',
-    'Total HTTP requests',
-    ['method', 'endpoint', 'status']
-)
+permissions:
+  id-token: write
+  contents: read
 
-REQUEST_DURATION = Histogram(
-    'http_request_duration_seconds',
-    'HTTP request duration',
-    ['endpoint']
-)
+jobs:
+  plan:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: terraform } }
+    steps:
+      - uses: actions/checkout@v7
+      - uses: aws-actions/configure-aws-credentials@v6
+        with: { role-to-assume: arn:aws:iam::<acct>:role/github-actions, aws-region: us-east-1 }
+      - uses: hashicorp/setup-terraform@v3
+      - run: terraform init -input=false
+      - run: terraform plan -no-color -input=false
+        env: { TF_VAR_key_name: "${{ vars.KEY_NAME }}" }
 
-ACTIVE_REQUESTS = Gauge(
-    'http_active_requests',
-    'Currently active HTTP requests'
-)
+  apply-and-deploy:
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    environment: production          # add a required reviewer for a real gate
+    steps:
+      - uses: actions/checkout@v7
+      - uses: aws-actions/configure-aws-credentials@v6
+        with: { role-to-assume: arn:aws:iam::<acct>:role/github-actions, aws-region: us-east-1 }
+      - uses: hashicorp/setup-terraform@v3
 
-@app.before_request
-def before_request():
-    ACTIVE_REQUESTS.inc()
+      - name: Provision infra
+        working-directory: terraform
+        run: terraform init -input=false && terraform apply -auto-approve -input=false
+        env: { TF_VAR_key_name: "${{ vars.KEY_NAME }}" }
 
-@app.after_request
-def after_request(response):
-    ACTIVE_REQUESTS.dec()
-    return response
-
-@app.route("/")
-def index():
-    start = time.time()
-    result = jsonify({"message": "Hello!", "version": os.getenv("APP_VERSION", "1.0")})
-    duration = time.time() - start
-    REQUEST_COUNT.labels(method="GET", endpoint="/", status=200).inc()
-    REQUEST_DURATION.labels(endpoint="/").observe(duration)
-    return result
-
-@app.route("/health")
-def health():
-    REQUEST_COUNT.labels(method="GET", endpoint="/health", status=200).inc()
-    return jsonify({"status": "ok"})
-
-@app.route("/metrics")
-def metrics():
-    return Response(generate_latest(), mimetype=CONTENT_TYPE_LATEST)
-
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=8080)
-EOF
-
-cat > ~/monitoring-labs/app/requirements.txt << 'EOF'
-flask==3.0.0
-prometheus-client==0.19.0
-EOF
-
-cat > ~/monitoring-labs/app/Dockerfile << 'EOF'
-FROM python:3.11-slim
-WORKDIR /app
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-COPY app.py .
-EXPOSE 8080
-CMD ["python3", "app.py"]
-EOF
-
-# Add app to compose
-cat >> ~/monitoring-labs/docker-compose.yml << 'EOF'
-
-  app:
-    build: ./app
-    container_name: myapp
-    ports:
-      - "8080:8080"
-EOF
-
-cd ~/monitoring-labs
-docker compose up -d --build
-
-# Generate some traffic
-for i in {1..20}; do curl -s http://localhost:8080/ > /dev/null; done
-for i in {1..5}; do curl -s http://localhost:8080/health > /dev/null; done
-
-# Check raw metrics
-curl http://localhost:8080/metrics
+      - name: Deploy the app
+        run: |
+          pip install ansible
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > key && chmod 600 key
+          echo "${{ secrets.VAULT_PASSWORD }}" > .vault
+          IP=$(terraform -chdir=terraform output -raw public_ip)
+          echo -e "[app]\n$IP ansible_user=ubuntu" > ansible/inventory.ini
+          ansible-playbook -i ansible/inventory.ini ansible/site.yml \
+            --private-key key --vault-password-file .vault \
+            -e "ANSIBLE_HOST_KEY_CHECKING=False"
 ```
 
-### Step 4 — Query application metrics
+Notice the deploy step builds the inventory **from the Terraform output** — the pipeline discovers the IP it just created.
 
-Back in the Prometheus UI ([http://localhost:9090](http://localhost:9090)):
+### 4. A full GitOps cycle
 
-```promql
-# Total requests to the app
-http_requests_total
+1. Open a **PR** (e.g. change the instance type or a frontend file). Actions posts the **plan**.
+2. **Merge.** `apply-and-deploy` provisions the EC2 and deploys the three containers.
+3. Visit `http://<public_ip>` — the frontend loads; `http://<public_ip>/api/healthz` reaches the backend; the backend reads/writes Postgres. **You never opened a terminal.**
 
-# Request rate per second (last 1 minute)
-rate(http_requests_total[1m])
+### 5. Reconciliation catches drift
 
-# Average request duration
-rate(http_request_duration_seconds_sum[5m]) / rate(http_request_duration_seconds_count[5m])
+**Manually stop the app** on the server (or delete the instance in the console). Re-run the pipeline (push an empty commit). Terraform recreates any missing infra and Ansible redeploys the stack — reality reconciled back to git.
 
-# Requests by endpoint
-sum by (endpoint) (rate(http_requests_total[1m]))
-```
+!!! success "This is your capstone"
+    A complete application — frontend, backend, database — provisioned by Terraform and deployed in containers by Ansible, **all driven by git**. Day 6 adds monitoring; Day 7 makes it secure. Keep this repo; it's your portfolio centerpiece.
+
+!!! danger "Teardown"
+    ```bash
+    cd terraform && terraform destroy
+    ```
+    Keep it if you're going straight to Day 6; otherwise destroy so the EC2 stops billing.
 
 ---
 
-## Assignment
+## Advanced Topics
 
-1. What is the difference between a Counter and a Gauge? Give an example of each from the node-exporter metrics you can see at `http://localhost:9100/metrics`.
-2. What does `rate(http_requests_total[5m])` compute? Why can't you use `http_requests_total` directly to see the current request rate?
-3. Add an `ERROR_COUNT` Counter to the app that increments on any unhandled exception. Write a `/error` endpoint that raises an exception on purpose. Query the metric in Prometheus.
-4. What does `scrape_interval: 15s` mean? What happens if your app takes longer than 15s to respond to Prometheus's scrape request?
+- **Argo CD & Flux** — pull-based, continuously-reconciling GitOps for Kubernetes → [Argo CD](https://argo-cd.readthedocs.io/) · [Flux](https://fluxcd.io/)
+- **Managed database** — swap the Postgres container for **RDS** when you need backups/HA (Week 3 patterns) → [RDS module](https://registry.terraform.io/modules/terraform-aws-modules/rds/aws/latest)
+- **Build a frontend image** — instead of Ansible-copying files, build+push a frontend image in CI (Day 2 pattern)
+- **Atlantis** — PR-driven Terraform automation, purpose-built → [runatlantis.io](https://www.runatlantis.io/)
+- **Scheduled drift detection** — a nightly `plan -detailed-exitcode` that alerts on drift
+
+---
+
+## Assignment — the capstone deliverable
+
+Ship the end-to-end project and document it as a portfolio piece.
+
+**What must work:**
+
+1. **One repo** with `frontend/`, `backend/`, `db/`, `terraform/`, `ansible/`, and workflows — no secrets committed.
+2. **A PR** shows the Terraform **plan**; **merge to `main`** provisions the EC2 (OIDC, no stored keys) and deploys all three containers with Ansible — no local commands.
+3. `http://<public_ip>` serves the **frontend**; `/api/healthz` reaches the **backend**; the backend **reads/writes Postgres** (add one DB-backed endpoint, e.g. `GET /api/items`).
+4. **Destroy + rebuild** reproduces the whole app from git.
+
+**Document** in the repo `README.md`: an architecture diagram (redraw the one above), a "how it works" trace from `git push` to live, and a runbook (deploy / roll back / tear down).
+
+**Submit:** repo link, a green pipeline run (all jobs), screenshots of the app in a browser and a successful destroy→rebuild, and a ½-page write-up of **what broke and how you debugged it**.
 
 ---
 
 ## Further Reading
 
-- [Prometheus getting started](https://prometheus.io/docs/prometheus/latest/getting_started/)
-- [PromQL basics](https://prometheus.io/docs/prometheus/latest/querying/basics/)
-- [prometheus_client Python library](https://github.com/prometheus/client_python)
+**Watch**
+
+- 📺 [What is GitOps, How GitOps works](https://youtu.be/f5EpcWp0THw) — TechWorld with Nana; principles and push vs pull
+
+**Reference**
+
+- [OpenGitOps — Principles](https://opengitops.dev/) · [Automate Terraform with GitHub Actions](https://developer.hashicorp.com/terraform/tutorials/automation/github-actions)
+- [`community.docker.docker_compose_v2`](https://docs.ansible.com/ansible/latest/collections/community/docker/docker_compose_v2_module.html) · [Postgres Docker image](https://hub.docker.com/_/postgres)
+- [The Twelve-Factor App](https://12factor.net/) — the config/deploy principles behind this design

@@ -81,7 +81,14 @@ nav:
     - Day 5 · AWS III — VPC, Route 53, ALB & TLS: week-03/day-19.md
     - Day 6 · Terraform I — IaC, HCL & Core Workflow: week-03/day-20.md
     - Day 7 · Terraform II — State, Backends & Modules: week-03/day-21.md
-  - Week 4 — CI/CD & Monitoring: week-04/index.md
+  - Week 4 — CI/CD & Monitoring:
+    - Day 1 · CI/CD Fundamentals & First Pipeline: week-04/day-22.md
+    - Day 2 · GitHub Actions II — Build, Push & Deploy: week-04/day-23.md
+    - Day 3 · Terraform in CI/CD: week-04/day-24.md
+    - Day 4 · Ansible in CI/CD: week-04/day-25.md
+    - Day 5 · GitOps & the End-to-End Project: week-04/day-26.md
+    - Day 6 · Monitoring & Alerting: week-04/day-27.md
+    - Day 7 · Security Best Practices: week-04/day-28.md
   - Resources: resources.md
 
 extra:

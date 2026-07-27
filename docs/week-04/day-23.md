@@ -1,217 +1,296 @@
-# Day 2 · AWS Basics II — VPC, S3 & Security Groups
+# Day 2 · GitHub Actions II — Build, Push & Deploy
+
+> A CI pipeline that stops at **green tests** is only half the story. The **CD** half takes the tested code, **builds a Docker image**, **pushes it to a registry**, and **deploys it to a server**. Along the way you'll meet the three things every real deployment pipeline needs: **secrets** (so you're not pasting passwords into YAML), a **registry** (a home for your images), and **OIDC** (so your pipeline talks to AWS with *no long-lived keys at all*).
+
+!!! info "Where this fits"
+    A basic CI workflow (lint → test → build) is covered in [CI/CD Fundamentals & First Pipeline](day-22.md). This extends the same `sample-app` repo into **build → push → deploy** — pushing to `main` ships a new container image and restarts the app on a server, hands-off.
 
 ## Learning Objectives
 
-- Understand VPC networking: subnets, route tables, and internet gateway
-- Use S3 for object storage (upload, download, static hosting)
-- Apply security group rules to control traffic precisely
+- Store credentials safely with **repository secrets** and gate deploys behind **environments**
+- Build a Docker image in CI and **push it to a registry** (GHCR)
+- Understand **OIDC** and why it replaces long-lived AWS access keys in pipelines
+- Speed up and scale workflows with **caching**, **matrix**, and **reusable workflows**
+- **Lab:** build the API image, push it to GHCR, then **deploy it to an EC2 host over SSH**
 
 ---
 
-## Theory · ~20 min
+## Prerequisites
 
-### VPC — Virtual Private Cloud
+- **Day 1 complete** — the `sample-app` repo with a passing CI workflow
+- An **EC2 instance** you can SSH into (Week 3, Day 4) — Ubuntu 24.04, Docker installed, port 22 open to you and 80 open to the world
+- The instance's **SSH private key** and its **public IP/DNS**
 
-A VPC is your own isolated network within AWS. Think of it as your private data center network hosted in the cloud.
+---
 
+## Theory · ~30 min
+
+### 1. Secrets — never hard-code credentials
+
+A pipeline that deploys needs credentials: a registry token, an SSH key, a database password. **Never** put these in the YAML — it's in git, visible to anyone with read access. Instead, store them as **encrypted secrets** (repo → **Settings → Secrets and variables → Actions**) and read them at run time:
+
+```yaml
+steps:
+  - run: echo "Deploying with $SSH_KEY"
+    env:
+      SSH_KEY: ${{ secrets.EC2_SSH_KEY }}   # injected from encrypted storage
 ```
-VPC (10.0.0.0/16)
-├── Public Subnet (10.0.1.0/24)   → has route to Internet Gateway
-│   └── EC2 (public IP, internet-facing)
-├── Private Subnet (10.0.2.0/24)  → no direct internet route
-│   └── RDS Database (no public IP)
-└── Internet Gateway               → connects VPC to the internet
-```
 
-Key components:
-
-| Component | Role |
+| Where secrets live | Scope |
 |---|---|
-| **Subnet** | A range of IPs within the VPC (public or private) |
-| **Internet Gateway (IGW)** | Allows VPC resources to reach the internet |
-| **Route Table** | Rules for where to send traffic |
-| **NAT Gateway** | Allows private subnet instances to reach internet (outbound only) |
-| **Security Group** | Instance-level firewall (stateful) |
-| **Network ACL** | Subnet-level firewall (stateless) |
+| **Repository secrets** | One repo's workflows |
+| **Environment secrets** | Only jobs targeting that environment (e.g. `production`) — can add approval gates |
+| **Organization secrets** | Shared across many repos |
 
-### S3 — Simple Storage Service
+!!! warning "Secrets are masked, not invisible"
+    GitHub masks secret values in logs (they show as `***`), but a malicious workflow step *could* still exfiltrate them. Only run trusted actions, and pin third-party actions to a commit SHA in security-sensitive repos.
 
-S3 stores files (called **objects**) in containers called **buckets**. It's:
-- Infinitely scalable — upload petabytes
-- Highly durable — 99.999999999% durability (11 nines)
-- Accessible via URL, CLI, or SDK
+### 2. Environments — a gate for deploys
 
-Common uses:
-- Static website hosting
-- Application file storage (uploads, exports)
-- Terraform state backend
-- Log archiving
-- CI/CD artifact storage (Docker images, binaries)
+An **environment** (repo → **Settings → Environments**) is a named deploy target (`staging`, `production`) that can carry its own secrets and **protection rules** — most usefully a **required reviewer** so a human must approve before the deploy job runs. This is exactly the "click to release" line between continuous *delivery* and *deployment* from Day 1.
+
+```yaml
+jobs:
+  deploy:
+    environment: production      # uses production's secrets + approval gate
+    runs-on: ubuntu-latest
+    steps: ...
+```
+
+### 3. Registries — where images live
+
+A minimal CI "build" might produce a throwaway tarball. A real build produces a **Docker image** and pushes it to a **container registry** so any server can pull it. You have choices:
+
+| Registry | Address | Notes |
+|---|---|---|
+| **GHCR** — GitHub Container Registry | `ghcr.io/<owner>/<image>` | Built into GitHub; auth via the automatic `GITHUB_TOKEN` — **used in the lab below** |
+| **Amazon ECR** | `<acct>.dkr.ecr.<region>.amazonaws.com/<repo>` | Native to AWS; best when deploying to ECS/EKS |
+| **Docker Hub** | `docker.io/<user>/<image>` | Ubiquitous; rate-limited on the free tier |
+
+GHCR wins for this course because it needs **no extra credentials** — GitHub hands each workflow a scoped `GITHUB_TOKEN` that can push to your own repo's registry.
+
+### 4. OIDC — deploy to AWS with no stored keys
+
+To deploy to AWS the old way, you'd store an **access key + secret** as repo secrets. Those are long-lived — leak them and an attacker has your account until you notice. **OIDC (OpenID Connect)** removes them entirely:
+
+```text
+GitHub Actions ──(1) here's a signed token proving "I'm repo X, branch main")──▶ AWS
+      ▲                                                                          │
+      └──────────(2) here's a 15-minute credential scoped to one role───────────┘
+```
+
+You create an **IAM role** once, tell AWS to **trust tokens from your repo**, and the pipeline exchanges a short-lived GitHub token for **temporary** AWS credentials each run. Nothing long-lived is ever stored.
+
+!!! tip "OIDC vs SSH — two deploy styles"
+    The lab below deploys by **SSH** (simple, works anywhere, uses an SSH key secret). OIDC shines when the pipeline calls **AWS APIs** — pushing to ECR, running `terraform apply`, updating an ECS service. Setting up OIDC to run Terraform against AWS is covered in [Terraform in CI/CD](day-24.md). The block looks like:
+
+    ```yaml
+    permissions:
+      id-token: write        # let the job request an OIDC token
+      contents: read
+    steps:
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: arn:aws:iam::<acct>:role/github-actions
+          aws-region: us-east-1
+    ```
+
+### 5. Three scaling tools, briefly
+
+You'll reach for these as pipelines grow — know they exist:
+
+- **Caching** — `actions/setup-node`'s `cache: npm` (Day 1) and Docker layer caching (`cache-from`/`cache-to`) skip repeating unchanged work, cutting minutes off each run.
+- **Matrix** — run one job many times across a grid of inputs (Node 20/22/24, Linux/Windows) without copy-paste.
+- **Reusable workflows** — factor a common pipeline into a file other repos `uses:`, so ten services share one deploy definition. DRY, for CI.
 
 ---
 
-## Lab · ~50 min
+## Lab · ~45 min
 
-### Step 1 — Explore your default VPC
+Turn `sample-app`'s CI into full CI/CD: **build** the API into a Docker image, **push** it to GHCR, then **deploy** it to your EC2 host over SSH — all on push to `main`.
 
-```bash
-# List VPCs
-aws ec2 describe-vpcs --output table
+### 1. Containerize the API
 
-# Get default VPC details
-aws ec2 describe-vpcs \
-    --filters "Name=is-default,Values=true" \
-    --query 'Vpcs[0]'
+Add a **`api/Dockerfile`** (multi-stage-ready, but simple here):
 
-# List subnets in default VPC
-VPC_ID=$(aws ec2 describe-vpcs --filters "Name=is-default,Values=true" \
-    --query 'Vpcs[0].VpcId' --output text)
-
-aws ec2 describe-subnets \
-    --filters "Name=vpc-id,Values=$VPC_ID" \
-    --query 'Subnets[*].{ID:SubnetId,AZ:AvailabilityZone,CIDR:CidrBlock}' \
-    --output table
+```dockerfile
+FROM node:24-alpine
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci --omit=dev          # production deps only
+COPY . .
+EXPOSE 3000
+CMD ["node", "server.js"]
 ```
 
-### Step 2 — Create a custom VPC (understanding the pieces)
+Add a **`api/.dockerignore`** so junk doesn't bloat the image:
 
-```bash
-# Create VPC
-CUSTOM_VPC=$(aws ec2 create-vpc --cidr-block 10.0.0.0/16 \
-    --query 'Vpc.VpcId' --output text)
-aws ec2 create-tags --resources $CUSTOM_VPC --tags Key=Name,Value=devops-month-vpc
-
-# Create public subnet
-PUBLIC_SUBNET=$(aws ec2 create-subnet \
-    --vpc-id $CUSTOM_VPC \
-    --cidr-block 10.0.1.0/24 \
-    --query 'Subnet.SubnetId' --output text)
-aws ec2 create-tags --resources $PUBLIC_SUBNET --tags Key=Name,Value=public-subnet
-
-# Create internet gateway
-IGW=$(aws ec2 create-internet-gateway \
-    --query 'InternetGateway.InternetGatewayId' --output text)
-aws ec2 attach-internet-gateway --internet-gateway-id $IGW --vpc-id $CUSTOM_VPC
-
-# Create route table and add route to internet
-RT=$(aws ec2 create-route-table --vpc-id $CUSTOM_VPC \
-    --query 'RouteTable.RouteTableId' --output text)
-aws ec2 create-route --route-table-id $RT \
-    --destination-cidr-block 0.0.0.0/0 \
-    --gateway-id $IGW
-
-# Associate route table with subnet
-aws ec2 associate-route-table --route-table-id $RT --subnet-id $PUBLIC_SUBNET
-
-echo "VPC: $CUSTOM_VPC"
-echo "Subnet: $PUBLIC_SUBNET"
-echo "IGW: $IGW"
+```text
+node_modules
+npm-debug.log
 ```
 
-### Step 3 — S3 basics
+Build and run it locally to confirm before automating:
 
 ```bash
-# Create a bucket (must be globally unique)
-BUCKET_NAME="devops-month-$(date +%s)"
-aws s3 mb s3://$BUCKET_NAME
-echo "Bucket: $BUCKET_NAME"
-
-# Upload a file
-echo "Hello from S3" > /tmp/test.txt
-aws s3 cp /tmp/test.txt s3://$BUCKET_NAME/test.txt
-
-# List contents
-aws s3 ls s3://$BUCKET_NAME
-
-# Download it
-aws s3 cp s3://$BUCKET_NAME/test.txt /tmp/from-s3.txt
-cat /tmp/from-s3.txt
-
-# Sync a directory to S3
-mkdir -p /tmp/site
-echo "<h1>Static Site on S3</h1>" > /tmp/site/index.html
-echo "<p>About page</p>" > /tmp/site/about.html
-
-aws s3 sync /tmp/site s3://$BUCKET_NAME/site/
-aws s3 ls s3://$BUCKET_NAME/site/
+cd api
+docker build -t sample-api .
+docker run --rm -p 3000:3000 sample-api
+curl localhost:3000/healthz      # {"status":"ok"}
 ```
 
-### Step 4 — S3 static website hosting
+### 2. Add a build-and-push job
+
+New workflow **`.github/workflows/deploy.yml`** — its first job builds the image and pushes it to **GHCR**. Note the `permissions` block: `packages: write` is what lets the automatic `GITHUB_TOKEN` push to the registry.
+
+```yaml
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  IMAGE: ghcr.io/${{ github.repository }}/api    # ghcr.io/<you>/sample-app/api
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write          # allow pushing to GHCR
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}   # auto-provided, no setup needed
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Build and push
+        uses: docker/build-push-action@v7
+        with:
+          context: ./api
+          push: true
+          tags: |
+            ${{ env.IMAGE }}:latest
+            ${{ env.IMAGE }}:${{ github.sha }}    # immutable tag per commit
+          cache-from: type=gha
+          cache-to: type=gha,mode=max             # cache layers between runs
+```
+
+Push to `main`, then check your repo's **Packages** (right sidebar) — your image is there, tagged `latest` and with the commit SHA.
+
+!!! tip "Tag with the commit SHA"
+    `:latest` is convenient but ambiguous — you can't tell *which* code is running. Pushing `:${{ github.sha }}` gives every build an **immutable** tag, so a deploy references exactly one commit and rollbacks are trivial.
+
+### 3. Store the deploy secrets
+
+The deploy job SSHes into EC2, so give the repo three secrets (**Settings → Secrets and variables → Actions → New repository secret**):
+
+| Secret | Value |
+|---|---|
+| `EC2_HOST` | your instance's public IP or DNS |
+| `EC2_USER` | `ubuntu` |
+| `EC2_SSH_KEY` | the **full contents** of your `.pem` private key |
+
+### 4. Add the deploy job
+
+Append a second job that runs **only after** the image is pushed (`needs:`) and pulls-and-restarts the container on the server:
+
+```yaml
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    environment: production        # optional: add a required reviewer here
+    steps:
+      - name: Deploy over SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            docker pull ${{ env.IMAGE }}:${{ github.sha }}
+            docker rm -f api || true
+            docker run -d --name api --restart unless-stopped \
+              -p 80:3000 ${{ env.IMAGE }}:${{ github.sha }}
+```
+
+!!! note "Make the image pullable"
+    New GHCR packages are **private** by default. Either keep the `docker login` line above (the server authenticates), or set the package to **public** (package → Settings → Change visibility) to pull without auth. For a real deploy, prefer auth.
+
+### 5. Ship it
 
 ```bash
-# Enable static website hosting
-aws s3 website s3://$BUCKET_NAME \
-    --index-document index.html \
-    --error-document error.html
-
-# Make the site folder public
-aws s3api put-bucket-policy \
-    --bucket $BUCKET_NAME \
-    --policy "{
-        \"Version\": \"2012-10-17\",
-        \"Statement\": [{
-            \"Effect\": \"Allow\",
-            \"Principal\": \"*\",
-            \"Action\": \"s3:GetObject\",
-            \"Resource\": \"arn:aws:s3:::${BUCKET_NAME}/site/*\"
-        }]
-    }"
-
-# Get the website endpoint
-REGION=$(aws configure get region)
-echo "Website URL: http://${BUCKET_NAME}.s3-website-${REGION}.amazonaws.com/site/"
-curl "http://${BUCKET_NAME}.s3-website-${REGION}.amazonaws.com/site/"
+git add .
+git commit -m "Add build-push-deploy pipeline"
+git push
 ```
 
-### Step 5 — Security group deep dive
+Watch the **Actions** tab: `build-and-push` runs, then `deploy` runs after it. When both are green, hit your instance:
 
 ```bash
-# Get your existing security group
-SG_ID=$(aws ec2 describe-security-groups \
-    --filters "Name=group-name,Values=devops-month-sg" \
-    --query 'SecurityGroups[0].GroupId' --output text)
-
-# See current rules
-aws ec2 describe-security-groups --group-ids $SG_ID \
-    --query 'SecurityGroups[0].IpPermissions'
-
-# Add a rule for port 443 (HTTPS)
-aws ec2 authorize-security-group-ingress \
-    --group-id $SG_ID \
-    --protocol tcp --port 443 --cidr 0.0.0.0/0
-
-# Add a rule for port 8080 from your IP only
-MY_IP=$(curl -s https://checkip.amazonaws.com)
-aws ec2 authorize-security-group-ingress \
-    --group-id $SG_ID \
-    --protocol tcp --port 8080 --cidr "${MY_IP}/32"
-
-# Remove a rule
-aws ec2 revoke-security-group-ingress \
-    --group-id $SG_ID \
-    --protocol tcp --port 8080 --cidr "${MY_IP}/32"
-
-# Clean up custom VPC (so it doesn't clutter your account)
-aws ec2 detach-internet-gateway --internet-gateway-id $IGW --vpc-id $CUSTOM_VPC
-aws ec2 delete-internet-gateway --internet-gateway-id $IGW
-aws ec2 delete-subnet --subnet-id $PUBLIC_SUBNET
-aws ec2 delete-route-table --route-table-id $RT
-aws ec2 delete-vpc --vpc-id $CUSTOM_VPC
+curl http://<EC2_HOST>/healthz      # {"status":"ok"} — served by the freshly deployed container
 ```
+
+Change the `/` route's text in `api/app.js`, push, and watch a new image build and redeploy within a minute or two — **that's continuous deployment**.
+
+!!! success "What you just built"
+    Push to `main` → tested → image built → pushed to GHCR → pulled and restarted on EC2, no human touching the server. Automating **Terraform** and **Ansible** in CI — and combining them to provision and deploy the end-to-end project — is covered in the [Terraform](day-24.md), [Ansible](day-25.md), and [GitOps](day-26.md) days.
+
+---
+
+## Advanced Topics
+
+- **OIDC to AWS in depth** — the IAM role + trust policy, then `configure-aws-credentials@v6` → [Configuring OpenID Connect in AWS](https://docs.github.com/en/actions/security-for-github-actions/security-hardening-your-deployments/configuring-openid-connect-in-amazon-web-services)
+- **Push to Amazon ECR** — `aws-actions/amazon-ecr-login` instead of GHCR → [amazon-ecr-login](https://github.com/aws-actions/amazon-ecr-login)
+- **Reusable workflows** — one deploy definition, many repos → [Reusing workflows](https://docs.github.com/en/actions/how-tos/reuse-automations/reuse-workflows)
+- **Environments & approvals** — required reviewers, wait timers, deployment branches → [Using environments for deployment](https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments)
+- **Pin actions to a SHA** — supply-chain hardening for third-party actions → [Security hardening](https://docs.github.com/en/actions/security-for-github-actions/security-guides/security-hardening-for-github-actions#using-third-party-actions)
 
 ---
 
 ## Assignment
 
-1. What is the difference between a public subnet and a private subnet in AWS?
-2. What is the difference between a Security Group and a Network ACL? Which is stateful?
-3. Upload your `my-progress/` directory to S3 as a backup (`aws s3 sync my-progress/ s3://<bucket>/backup/`). Paste the command and the output.
-4. Why would you store Terraform state in S3 instead of locally?
+Harden and extend the deploy pipeline.
+
+**Part 1 — Gate production behind a review.** Configure the `production` **environment** with a **required reviewer** (yourself). Push a change and confirm the `deploy` job **waits** for your approval before running, then approve it and watch it finish. Screenshot the pending-approval state.
+
+**Part 2 — Deploy a specific version, not just `latest`.** Add a **`workflow_dispatch`** input called `image_tag` (default `latest`) and make the deploy job run whichever tag you type — so you can **redeploy an older commit** (a rollback) by pasting its SHA. Test it by deploying the *previous* commit's SHA and confirming the app reverts.
+
+```yaml
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Image tag/SHA to deploy"
+        default: "latest"
+```
+
+**Submit:** both workflow files, a screenshot of the approval gate, and a screenshot of the manual `workflow_dispatch` run that rolled back to a previous SHA.
+
+!!! danger "Don't leave the instance running"
+    If this EC2 host is only for the lab, **stop or terminate it** when done (Week 3 teardown habits) — a running instance bills even while idle.
 
 ---
 
 ## Further Reading
 
-- [AWS VPC documentation](https://docs.aws.amazon.com/vpc/latest/userguide/)
-- [S3 getting started](https://docs.aws.amazon.com/AmazonS3/latest/userguide/GetStartedWithS3.html)
-- [VPC subnet sizing guide](https://docs.aws.amazon.com/vpc/latest/userguide/configure-subnets.html)
+**Watch**
+
+- 📺 [GitHub Actions — Build & Push Docker images](https://youtu.be/R8_veQiYBjI?t=900) — the CI-pipeline-with-Docker segment of the GitHub Actions walkthrough
+
+**Reference**
+
+- [Publishing images to GHCR](https://docs.github.com/en/actions/how-tos/package-your-software/publishing-and-installing-a-package-with-github-actions) · [About `GITHUB_TOKEN`](https://docs.github.com/en/actions/security-for-github-actions/security-guides/automatic-token-authentication)
+- [`docker/build-push-action`](https://github.com/docker/build-push-action) · [`docker/login-action`](https://github.com/docker/login-action) · [`docker/setup-buildx-action`](https://github.com/docker/setup-buildx-action)
+- [Encrypted secrets](https://docs.github.com/en/actions/how-tos/security-for-github-actions/security-guides/using-secrets-in-github-actions) · [Using environments](https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments)
+- [`aws-actions/configure-aws-credentials`](https://github.com/aws-actions/configure-aws-credentials)

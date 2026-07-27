@@ -46,8 +46,17 @@ Each session is **1–1.5 hours** of focused work: ~20 min theory + ~50 min hand
 
 ## Week 4 — CI/CD & Monitoring
 
-!!! info "Coming soon"
-    The content for this week is still being prepared.
+*Spine: **Ship It & Watch It** — take the three-tier app (web · API · database) all the way to a self-deploying, monitored production stack.*
+
+| Day | Topic | Key Skills |
+|---|---|---|
+| [Day 1](week-04/day-22.md) | CI/CD Fundamentals & First Pipeline | CI vs delivery vs deployment, pipeline stages & gates, GitHub Actions anatomy (workflow/job/step/runner/action), triggers (`push`/`pull_request`/`workflow_dispatch`/`schedule`); first lint→test→build workflow |
+| [Day 2](week-04/day-23.md) | GitHub Actions II — Build, Push & Deploy | Secrets & environments, caching, matrix, reusable workflows, OIDC → AWS, container registry (GHCR/ECR); build image → push → deploy to EC2 |
+| [Day 3](week-04/day-24.md) | Terraform in CI/CD | Why IaC belongs in a pipeline, OIDC keyless AWS auth, `fmt`/`validate`/`plan`/`apply` as stages, plan-on-PR + apply-on-merge; small standalone example |
+| [Day 4](week-04/day-25.md) | Ansible in CI/CD | `ansible-lint`/`--syntax-check`/`--check` gates, SSH key + Vault password from secrets, apply on merge, idempotency as a safety net; small standalone example |
+| [Day 5](week-04/day-26.md) | GitOps & the End-to-End Project | GitOps principles (declarative, versioned, reconciled), push vs pull; the capstone project — one repo with frontend + backend + Postgres, Terraform-provisioned EC2, Ansible deploying all three as containers, git-driven |
+| [Day 6](week-04/day-27.md) | Monitoring & Alerting | Prometheus (metrics), Loki (logs), Grafana (dashboards + log queries + alerting → Discord) via Alloy; watch the end-to-end app |
+| [Day 7](week-04/day-28.md) | Security Best Practices | DevSecOps / shift-left; secrets, least-privilege IAM, tight security groups, image + IaC scanning (Trivy), pin actions to SHA, Dependabot; course wrap-up & what's next |
 
 ---
 

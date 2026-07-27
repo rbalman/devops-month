@@ -1,0 +1,20 @@
+{
+  "name": "cicd-sample-api",
+  "version": "1.0.0",
+  "description": "Day 1 reference API for the Week 4 CI/CD lab",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "jest",
+    "lint": "eslint ."
+  },
+  "license": "MIT",
+  "dependencies": {
+    "express": "^5.2.1"
+  },
+  "devDependencies": {
+    "eslint": "^10.8.0",
+    "jest": "^30.4.2",
+    "supertest": "^7.2.2"
+  }
+}

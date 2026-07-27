@@ -1,315 +1,232 @@
-# Day 4 · CI/CD II — Build, Push & Deploy to EC2
+# Day 4 · Ansible in CI/CD — Automating Configuration with GitHub Actions
+
+> Yesterday you ran Terraform from a pipeline. Today it's **Ansible's** turn. Configuration drifts just like infrastructure — someone SSHes in, tweaks nginx, forgets. Running your playbooks from CI means every config change is **reviewed, linted, dry-run, and applied by a machine** — never by hand on a box nobody else knows about. As with yesterday, we keep the example tiny: one playbook against one server, so the focus stays on the *automation pattern*.
+
+!!! info "Where this fits"
+    Day 3 automated Terraform in CI; today automates Ansible. That completes the toolkit — lint/test/build, image publish, IaC, config management, all in GitHub Actions. Day 5 combines them into a git-driven, end-to-end deploy.
 
 ## Learning Objectives
 
-- Build a Docker image in CI and push it to a registry
-- Automate deployment to an EC2 instance via GitHub Actions
-- Use GitHub Secrets to store credentials safely
+- Explain why configuration management belongs in CI, and the gates that make it safe
+- Use **`ansible-lint`**, **`--syntax-check`**, and **`--check`** (dry run) as pipeline stages
+- Supply an **SSH key** and **Vault password** to a workflow from GitHub secrets
+- Apply a playbook on merge, and rely on **idempotency** as a safety net
+- **Lab:** a minimal playbook run by GitHub Actions against an EC2 host
 
 ---
 
-## Theory · ~20 min
+## Prerequisites
 
-### A Complete CI/CD Pipeline
-
-A real pipeline has distinct stages with clear responsibilities:
-
-```
-Code Push
-    ↓
-[CI] Lint + Test
-    ↓ (only if tests pass)
-[CI] Build Docker Image
-    ↓
-[CI] Push Image to Registry (Docker Hub or ECR)
-    ↓ (only on main branch)
-[CD] SSH to EC2, pull new image, restart container
-    ↓
-Application running with new code
-```
-
-### GitHub Secrets
-
-Secrets are encrypted key-value pairs stored in your repository settings. They're injected into workflows as environment variables — never visible in logs.
-
-Go to: **Repository → Settings → Secrets and variables → Actions → New repository secret**
-
-Typical secrets for this pipeline:
-- `DOCKER_USERNAME` — Docker Hub username
-- `DOCKER_PASSWORD` — Docker Hub token (not your password)
-- `EC2_HOST` — your EC2 instance's public IP
-- `EC2_SSH_KEY` — the private key to SSH into EC2
-- `EC2_USER` — usually `ubuntu` for Ubuntu AMIs
-
-### Deployment Strategies
-
-| Strategy | How | Downtime |
-|---|---|---|
-| Recreate | Stop old, start new | Yes |
-| Rolling | Update instances one at a time | No |
-| Blue/Green | Run two environments, switch traffic | No |
-| Canary | Gradually shift traffic to new version | No |
-
-For this course we'll use **Recreate** — simple and sufficient for a single-server setup.
+- **Week 3 complete** — Ansible basics, inventory, roles (Days 15–16)
+- An **EC2 instance** you can SSH into (from Day 2/3, or launch a fresh `t3.micro`) with its **private key**
+- Day 1's `sample-app` repo
 
 ---
 
-## Lab · ~50 min
+## Theory · ~30 min
 
-### Step 1 — Prepare the application
+### 1. Why run Ansible in CI
 
-```bash
-cd ~/cicd-demo
+The same argument as Terraform, applied to configuration:
 
-# Create a simple Flask app to deploy
-cat > app.py << 'EOF'
-from flask import Flask, jsonify
-import os
+| Manual `ansible-playbook` | Pipeline |
+|---|---|
+| Run from someone's laptop, ad-hoc | Clean runner, pinned collections, reproducible |
+| No review of what changed | Every change is a reviewed **PR** |
+| Vault password / SSH key on laptops | Injected from **encrypted secrets** at run time |
+| "Did anyone run it on all hosts?" | The pipeline runs it, every time, on the full inventory |
 
-app = Flask(__name__)
+### 2. The Ansible pipeline — gates before you touch a server
 
-@app.route("/")
-def index():
-    return jsonify({
-        "message": "Hello from the DevOps Month CI/CD pipeline!",
-        "version": os.getenv("APP_VERSION", "unknown"),
-        "commit": os.getenv("GIT_COMMIT", "unknown")
-    })
+Ansible has its own cheap-to-expensive gates, mirroring lint→test→apply:
 
-@app.route("/health")
-def health():
-    return jsonify({"status": "ok"})
-
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=8080)
-EOF
-
-cat > requirements.txt << 'EOF'
-flask==3.0.0
-pytest==7.4.0
-flake8==6.0.0
-EOF
-
-cat > test_app.py << 'EOF'
-import pytest
-from app import app
-
-@pytest.fixture
-def client():
-    app.testing = True
-    return app.test_client()
-
-def test_index(client):
-    r = client.get("/")
-    assert r.status_code == 200
-    data = r.get_json()
-    assert "message" in data
-
-def test_health(client):
-    r = client.get("/health")
-    assert r.status_code == 200
-    assert r.get_json()["status"] == "ok"
-EOF
-
-cat > Dockerfile << 'EOF'
-FROM python:3.11-slim
-
-WORKDIR /app
-
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
-COPY app.py .
-
-ENV APP_VERSION=1.0
-
-EXPOSE 8080
-
-CMD ["python3", "app.py"]
-EOF
-
-cat > .dockerignore << 'EOF'
-.git/
-.github/
-*.pyc
-__pycache__/
-test_*.py
-EOF
-
-git add .
-git commit -m "add flask app with dockerfile"
+```text
+  PR ──▶ ansible-lint ──▶ --syntax-check ──▶ --check (dry run) ──▶ review
+                                                                     │
+  merge to main ──────────────────────────────────────────▶ ansible-playbook (apply)
 ```
 
-### Step 2 — Add GitHub Secrets
+| Stage | Catches |
+|---|---|
+| **`ansible-lint`** | Bad practices, deprecated modules, style |
+| **`--syntax-check`** | YAML/playbook structure errors — before connecting anywhere |
+| **`--check`** (dry run) | *Would-be* changes, with `--diff` to show them — the "plan" of Ansible |
+| **apply** | The real change, on merge |
 
-In your GitHub repo, go to **Settings → Secrets → Actions** and add:
+`--check` is Ansible's answer to `terraform plan`: it reports what **would** change without changing it — so a PR can show the intended effect.
 
-- `DOCKER_USERNAME` — your Docker Hub username
-- `DOCKER_PASSWORD` — Docker Hub access token (Docker Hub → Account Settings → Security → New Access Token)
-- `EC2_HOST` — the public IP of your EC2 instance from Day 1
-- `EC2_SSH_KEY` — paste the contents of `~/.ssh/devops-month-ec2.pem`
-- `EC2_USER` — `ubuntu`
+### 3. Secrets: SSH key + Vault password
 
-### Step 3 — Write the full CI/CD pipeline
+A CI run needs two secrets to configure a real host:
 
-```bash
-cat > .github/workflows/deploy.yml << 'EOF'
-name: CI/CD Pipeline
+- The **SSH private key** to reach the host — stored as a repo secret, written to a file at run time.
+- The **Ansible Vault password** to decrypt any vaulted vars — stored as a secret, passed via `--vault-password-file`.
+
+Neither ever lives in the repo. The runner is ephemeral, so they exist only for the seconds the job runs.
+
+!!! warning "Reaching the host from a hosted runner"
+    GitHub-hosted runners have **dynamic IPs**, so the target's security group must allow SSH from anywhere (`0.0.0.0/0` on 22) with **key-only** auth — acceptable for a lab, not ideal for production. Real setups use a **self-hosted runner inside the VPC**, a **bastion**, or **SSM**. We note it now and use it properly on Day 5.
+
+### 4. Idempotency is your CI safety net
+
+Because playbooks are **idempotent** (Week 3), re-running one is safe — the second apply changes nothing. That's what makes automated config safe to run on every merge: applying an unchanged playbook is a no-op, so the pipeline can run freely without fear of "doing it twice."
+
+---
+
+## Lab · ~45 min
+
+Run a small playbook against an EC2 host from GitHub Actions: lint + syntax + dry-run on PRs, apply on merge.
+
+### 1. The playbook
+
+In your repo, make an `ansible/` folder. **`ansible/playbook.yml`** — install nginx and drop a page (deliberately simple):
+
+```yaml
+- hosts: web
+  become: true
+  tasks:
+    - name: Install nginx
+      ansible.builtin.apt:
+        name: nginx
+        state: present
+        update_cache: true
+
+    - name: Deploy the landing page
+      ansible.builtin.copy:
+        content: "Configured by GitHub Actions + Ansible\n"
+        dest: /var/www/html/index.html
+        mode: "0644"
+      notify: reload nginx
+
+  handlers:
+    - name: reload nginx
+      ansible.builtin.service:
+        name: nginx
+        state: reloaded
+```
+
+**`ansible/inventory.ini`** — your one host (public IP of the EC2):
+
+```ini
+[web]
+<ec2-public-ip>
+
+[web:vars]
+ansible_user=ubuntu
+```
+
+### 2. Store the secrets
+
+Repo → **Settings → Secrets and variables → Actions**:
+
+| Secret | Value |
+|---|---|
+| `SSH_PRIVATE_KEY` | full contents of your `.pem` |
+
+(No Vault secret needed for this simple playbook — you'll add one on Day 5.)
+
+### 3. The workflow
+
+**`.github/workflows/ansible.yml`**:
+
+```yaml
+name: Ansible
 
 on:
+  pull_request:
+    paths: ["ansible/**"]
   push:
     branches: [main]
-  pull_request:
-    branches: [main]
-
-env:
-  IMAGE_NAME: ${{ secrets.DOCKER_USERNAME }}/devops-month-app
+    paths: ["ansible/**"]
 
 jobs:
-  test:
-    name: Lint and Test
+  ansible:
     runs-on: ubuntu-latest
-
+    defaults:
+      run:
+        working-directory: ansible
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
-          python-version: "3.11"
+          python-version: "3.12"
 
-      - name: Install dependencies
-        run: pip install -r requirements.txt
+      - name: Install Ansible + lint
+        run: pip install ansible ansible-lint
 
       - name: Lint
-        run: flake8 app.py --max-line-length=100
+        run: ansible-lint playbook.yml
 
-      - name: Test
-        run: pytest test_app.py -v
+      - name: Syntax check
+        run: ansible-playbook --syntax-check -i inventory.ini playbook.yml
 
-  build-and-push:
-    name: Build & Push Image
-    runs-on: ubuntu-latest
-    needs: test
-    if: github.ref == 'refs/heads/main'   # only on main branch
+      - name: Set up SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
 
-    outputs:
-      image_tag: ${{ steps.meta.outputs.version }}
+      - name: Dry run (on PRs)
+        if: github.event_name == 'pull_request'
+        run: ansible-playbook -i inventory.ini playbook.yml --check --diff
+        env:
+          ANSIBLE_HOST_KEY_CHECKING: "False"
 
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Docker metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.IMAGE_NAME }}
-          tags: |
-            type=sha,prefix=sha-
-            type=raw,value=latest
-
-      - name: Log in to Docker Hub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
-
-      - name: Build and push
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          build-args: |
-            GIT_COMMIT=${{ github.sha }}
-
-  deploy:
-    name: Deploy to EC2
-    runs-on: ubuntu-latest
-    needs: build-and-push
-    if: github.ref == 'refs/heads/main'
-
-    steps:
-      - name: Deploy via SSH
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER }}
-          key: ${{ secrets.EC2_SSH_KEY }}
-          script: |
-            # Pull latest image
-            docker pull ${{ env.IMAGE_NAME }}:latest
-
-            # Stop and remove old container
-            docker stop devops-app || true
-            docker rm devops-app || true
-
-            # Run new container
-            docker run -d \
-              --name devops-app \
-              --restart unless-stopped \
-              -p 80:8080 \
-              -e APP_VERSION=${{ github.sha }} \
-              -e GIT_COMMIT=${{ github.sha }} \
-              ${{ env.IMAGE_NAME }}:latest
-
-            # Health check
-            sleep 5
-            curl -f http://localhost/health || exit 1
-            echo "Deployment successful!"
-EOF
-
-git add .github/
-git commit -m "add full ci/cd deploy pipeline"
-git push origin main
+      - name: Apply (on merge to main)
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: ansible-playbook -i inventory.ini playbook.yml
+        env:
+          ANSIBLE_HOST_KEY_CHECKING: "False"
 ```
 
-### Step 4 — Prepare EC2 for Docker deployments
+### 4. Run the cycle
 
-SSH into your EC2 instance and install Docker:
+1. Open a **PR**. Watch `ansible-lint` → `--syntax-check` → `--check --diff` run; the dry-run's `--diff` shows the file it *would* write.
+2. **Merge.** The apply step runs the playbook for real. Visit `http://<ec2-public-ip>` — your page is live.
+3. Change the page text on a branch, open a PR — the dry run shows the diff. Merge to apply it.
 
-```bash
-ssh -i ~/.ssh/devops-month-ec2.pem ubuntu@$EC2_IP
+### 5. See idempotency in CI
 
-# On the EC2 instance:
-curl -fsSL https://get.docker.com | sudo sh
-sudo usermod -aG docker ubuntu
-newgrp docker
-docker --version
+Re-run the apply (re-run the workflow, or push an empty change). The playbook reports **ok**, not **changed** — nothing to do. That's why running config on every merge is safe.
 
-exit
-```
+!!! success "What you just built"
+    A reviewed, linted, dry-run-then-applied Ansible pipeline. You've now automated all four building blocks — **test, image, Terraform, Ansible**. Day 5 assembles them into the end-to-end project under GitOps.
 
-### Step 5 — Trigger and monitor the pipeline
+---
 
-```bash
-# Make a small change and push to trigger the pipeline
-echo "# My App" >> README.md
-git add README.md
-git commit -m "trigger pipeline"
-git push origin main
-```
+## Advanced Topics
 
-Watch the **Actions** tab in GitHub. After the pipeline completes:
-
-```bash
-# Test the deployed app
-curl http://$EC2_IP
-curl http://$EC2_IP/health
-```
+- **Molecule** — test roles in throwaway containers as a CI gate → [Molecule](https://ansible.readthedocs.io/projects/molecule/)
+- **Self-hosted runners in the VPC** — reach private hosts without opening SSH to the world → [Self-hosted runners](https://docs.github.com/en/actions/how-tos/manage-runners/self-hosted-runners)
+- **`--check --diff` limits** — some modules can't predict changes; know where dry-run is blind → [Check mode](https://docs.ansible.com/ansible/latest/playbook_guide/playbooks_checkmode.html)
+- **Dynamic inventory in CI** — query AWS by tag instead of hard-coding IPs → [`amazon.aws.aws_ec2`](https://docs.ansible.com/ansible/latest/collections/amazon/aws/aws_ec2_inventory.html)
 
 ---
 
 ## Assignment
 
-1. What would happen in the pipeline if the `test` job fails? Would `build-and-push` run?
-2. What is the `if: github.ref == 'refs/heads/main'` condition doing? Why is this important?
-3. Add a Slack or Discord notification step at the end of the `deploy` job that sends a message when deployment succeeds.
-4. What is the difference between Docker Hub and AWS ECR as a container registry?
+Harden the Ansible pipeline.
+
+**Part 1 — Vaulted secret + password from CI.** Add a **vaulted** variable (e.g. a message string or a fake token) with `ansible-vault`, use it in the playbook, and pass the **vault password from a GitHub secret** via `--vault-password-file`. Confirm the workflow decrypts and applies it without the password ever appearing in the repo or logs.
+
+**Part 2 — Fail the PR on drift.** Make the **`--check`** step run on PRs with `--diff` and treat *any* would-be change as a signal: using `--check`, a PR that expects "no changes" should come back clean. Manually change the file on the server (`echo hacked > /var/www/html/index.html`), then run a check-mode job and show it **reports the drift** it would revert.
+
+**Submit:** your `ansible.yml`, the vaulted file (encrypted — safe to commit), a screenshot of the dry-run `--diff` on a PR, and the check-mode run that detected your manual drift.
+
+!!! danger "Don't leave the box running"
+    If this EC2 is only for the lab, **stop or terminate it** when done.
 
 ---
 
 ## Further Reading
 
-- [GitHub Actions: deploy to EC2](https://docs.github.com/en/actions/deployment/deploying-to-amazon-ec2)
-- [Docker build-push-action](https://github.com/docker/build-push-action)
-- [appleboy/ssh-action](https://github.com/appleboy/ssh-action)
+**Watch**
+
+- 📺 [Ansible in CI/CD pipelines](https://youtu.be/1id6ERvfozo) — linting, check mode, and automated runs
+
+**Reference**
+
+- [`ansible-lint`](https://ansible.readthedocs.io/projects/lint/) · [Check mode (`--check`)](https://docs.ansible.com/ansible/latest/playbook_guide/playbooks_checkmode.html)
+- [Ansible Vault](https://docs.ansible.com/ansible/latest/vault_guide/index.html) · [`actions/setup-python`](https://github.com/actions/setup-python)
+- [Using secrets in GitHub Actions](https://docs.github.com/en/actions/how-tos/security-for-github-actions/security-guides/using-secrets-in-github-actions)

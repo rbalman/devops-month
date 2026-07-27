@@ -1,350 +1,281 @@
-# Day 6 · Monitoring II — Loki & Log Aggregation
+# Day 6 · Monitoring & Alerting
+
+> Your end-to-end app is live and self-deploying — but right now, if it falls over at 3 a.m., **you'd find out from an angry user.** The next discipline is knowing what your system is doing *before* anyone else does. Today you stand up the classic open-source observability stack — **Prometheus** for metrics, **Loki** for logs, **Grafana** as the single pane of glass — and wire an **alert to Discord** so a problem pages you, not your users. The moving parts are kept few on purpose: three stores, one UI, one notification channel.
+
+!!! info "Where this fits"
+    Day 5 gave you a running frontend + backend + Postgres. Today you watch it. Tomorrow (Day 7) you secure it.
 
 ## Learning Objectives
 
-- Understand why centralized log aggregation matters
-- Run Loki and collect logs from containers with Promtail
-- Query logs with LogQL
+- Distinguish the three pillars — **metrics**, **logs**, and traces — and when each helps
+- Run **Prometheus + Loki + Grafana** with collectors, in one Compose stack
+- Use **Grafana** as one UI: build a **dashboard**, query **logs** in Explore, define **alerts**
+- Send a firing alert to **Discord** via a contact point
+- **Lab:** monitor the app host, view its container logs, and trigger a real Discord alert
 
 ---
 
-## Theory · ~20 min
+## Prerequisites
 
-### The Problem with Logs at Scale
-
-On a single server, you can just `tail -f /var/log/app.log`. But in a real environment:
-- 10+ servers each writing their own logs
-- Containers that are ephemeral — logs disappear when the container is removed
-- Multiple services with different log files and formats
-
-You need a **centralized log aggregation** system where all logs flow to one place, can be searched, and are retained even after containers die.
-
-### The Grafana Observability Stack
-
-```
-Metrics:  Prometheus → Grafana
-Logs:     Loki       → Grafana
-Traces:   Tempo      → Grafana
-```
-
-**Loki** is designed as the "Prometheus for logs." Instead of indexing the full text of every log line (like Elasticsearch), it only indexes the **labels** (metadata). The log content itself is stored compressed.
-
-Result: Loki is much cheaper to run than Elasticsearch at scale.
-
-### Loki Architecture
-
-```
-Application logs
-    ↓
-Promtail (log agent — runs on each machine)
-    ↓ (pushes log streams with labels)
-Loki (stores logs, handles queries)
-    ↓
-Grafana (query via LogQL, build dashboards)
-```
-
-### LogQL
-
-LogQL is Loki's query language, inspired by PromQL.
-
-```logql
-# All logs from the nginx container
-{container="nginx"}
-
-# Filter for error logs
-{container="myapp"} |= "error"
-
-# Filter with regex
-{container="myapp"} |~ "status=[45][0-9][0-9]"
-
-# Count error rate per minute
-count_over_time({container="myapp"} |= "error" [1m])
-
-# Parse structured logs (JSON)
-{container="myapp"} | json | status >= 500
-```
+- **Day 5 complete** — the end-to-end app running on its EC2
+- A host with **Docker + Compose** to run the monitoring stack (the same EC2 is fine for the lab)
+- A **Discord server** where you can create a webhook (Server Settings → Integrations → Webhooks)
 
 ---
 
-## Lab · ~50 min
+## Theory · ~30 min
 
-### Step 1 — Add Loki and Promtail to the stack
+### 1. The three pillars of observability
 
-```bash
-cd ~/monitoring-labs
+You can't fix what you can't see. Three kinds of signal, each answering a different question:
 
-mkdir -p loki promtail
+| Pillar | What it is | Answers | Tool today |
+|---|---|---|---|
+| **Metrics** | Numbers over time (CPU %, request rate, error count) | "*Is* something wrong, and how much?" | **Prometheus** |
+| **Logs** | Timestamped text events | "*What* happened, exactly?" | **Loki** |
+| **Traces** | A request's path across services | "*Where* in the chain did it slow down?" | (out of scope) |
 
-cat > loki/config.yml << 'EOF'
-auth_enabled: false
+The workflow: a **metric** alert tells you something's wrong → you open the **logs** to see what → (in bigger systems) a **trace** shows where. Today you wire the first two and view both through Grafana.
 
-server:
-  http_listen_port: 3100
+### 2. The stack — few moving parts, on purpose
 
-ingester:
-  lifecycler:
-    address: 127.0.0.1
-    ring:
-      kvstore:
-        store: inmemory
-      replication_factor: 1
-    final_sleep: 0s
-  chunk_idle_period: 5m
-  chunk_retain_period: 30s
+```text
+   ┌── node_exporter ──┐   (host metrics: CPU, mem, disk)
+   ├── cAdvisor ───────┤   (container metrics)
+   │                   ▼
+   │            ┌─────────────┐   scrapes  ┌──────────┐
+   │            │ Prometheus  │◀───────────┤  targets  │
+   │            └──────┬──────┘             └──────────┘
+   │                   │
+   └── Alloy ──▶ Loki ─┤            metrics + logs
+       (tails          │                   │
+        container      ▼                   ▼
+        logs)     ┌──────────────────────────────┐
+                  │           Grafana            │  ◀── you
+                  │  dashboards · Explore · alerts│
+                  └───────────────┬──────────────┘
+                                  │ alert fires
+                                  ▼
+                               Discord
+```
 
-schema_config:
-  configs:
-    - from: 2020-10-24
-      store: boltdb-shipper
-      object_store: filesystem
-      schema: v11
-      index:
-        prefix: index_
-        period: 24h
+| Component | Role |
+|---|---|
+| **Prometheus** | Pulls (**scrapes**) metrics from targets every few seconds and stores them |
+| **node_exporter** | Exposes host metrics (CPU, memory, disk) |
+| **cAdvisor** | Exposes per-container metrics (your frontend/backend/postgres) |
+| **Loki** | Stores logs — "Prometheus, but for logs" (label-based, cheap) |
+| **Grafana Alloy** | The log collector — tails container logs and ships them to Loki |
+| **Grafana** | One UI over both stores: dashboards, log search, and alerting |
 
-storage_config:
-  boltdb_shipper:
-    active_index_directory: /loki/index
-    cache_location: /loki/index_cache
-    shared_store: filesystem
-  filesystem:
-    directory: /loki/chunks
+!!! warning "Promtail is dead — use Alloy"
+    Older tutorials use **Promtail** to ship logs to Loki. Promtail reached **end-of-life in March 2026** and is unsupported. Its replacement is **Grafana Alloy** — a single collector for logs, metrics, and traces (built on the OpenTelemetry Collector). This course uses Alloy.
 
-limits_config:
-  reject_old_samples: true
-  reject_old_samples_max_age: 168h
+### 3. Grafana as the single pane of glass
 
-chunk_store_config:
-  max_look_back_period: 0s
+Grafana doesn't store anything — it **queries** stores you register as **data sources** (Prometheus for metrics, Loki for logs). From one UI you get **dashboards** (PromQL graphs), **Explore** (ad-hoc queries incl. **log search** with LogQL), and **alerting**. Metrics, logs, *and* alerts from one tool — that's what keeps the moving parts few.
 
-table_manager:
-  retention_deletes_enabled: false
-  retention_period: 0s
-EOF
+### 4. How alerting works
 
-cat > promtail/config.yml << 'EOF'
-server:
-  http_listen_port: 9080
-  grpc_listen_port: 0
+Grafana **unified alerting** has four parts:
 
-positions:
-  filename: /tmp/positions.yaml
+```text
+Alert rule ──evaluates a query every N sec──▶ [ OK → Pending → Firing ]
+                                                            │
+                                       routed by a notification policy
+                                                            ▼
+                                            Contact point (Discord webhook)
+```
 
-clients:
-  - url: http://loki:3100/loki/api/v1/push
+- **Alert rule** — a query + condition (e.g. `up == 0` for 1 minute).
+- **Pending → Firing** — it must stay true for the "for" duration before firing (avoids flapping).
+- **Contact point** — where a firing alert goes; Grafana has a **built-in Discord type** — paste a webhook URL, done.
 
-scrape_configs:
-  - job_name: containers
-    docker_sd_configs:
-      - host: unix:///var/run/docker.sock
-        refresh_interval: 5s
-    relabel_configs:
-      - source_labels: [__meta_docker_container_name]
-        regex: '/(.*)'
-        target_label: container
-      - source_labels: [__meta_docker_container_log_stream]
-        target_label: stream
+No separate Alertmanager to run — Grafana handles evaluation *and* notification.
 
-  - job_name: system
-    static_configs:
-      - targets:
-          - localhost
-        labels:
-          job: varlogs
-          __path__: /var/log/*.log
-EOF
+---
 
-# Update docker-compose.yml
-cat > docker-compose.yml << 'EOF'
+## Lab · ~45 min
+
+Stand up the stack, watch your host and containers, read their logs, and fire a Discord alert.
+
+### 1. The monitoring stack
+
+In a `monitoring/` folder, **`docker-compose.yml`**:
+
+```yaml
 services:
   prometheus:
-    image: prom/prometheus:latest
-    container_name: prometheus
-    ports:
-      - "9090:9090"
-    volumes:
-      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - prometheus_data:/prometheus
-    command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--storage.tsdb.retention.time=7d'
+    image: prom/prometheus:v3.13.1
+    volumes: ["./prometheus.yml:/etc/prometheus/prometheus.yml:ro"]
+    ports: ["9090:9090"]
 
   node-exporter:
     image: prom/node-exporter:latest
-    container_name: node-exporter
-    ports:
-      - "9100:9100"
+    ports: ["9100:9100"]
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:latest
     volumes:
-      - /proc:/host/proc:ro
-      - /sys:/host/sys:ro
       - /:/rootfs:ro
-    command:
-      - '--path.procfs=/host/proc'
-      - '--path.sysfs=/host/sys'
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+    ports: ["8080:8080"]
 
   loki:
-    image: grafana/loki:2.9.0
-    container_name: loki
-    ports:
-      - "3100:3100"
-    volumes:
-      - ./loki/config.yml:/etc/loki/config.yml:ro
-      - loki_data:/loki
-    command: -config.file=/etc/loki/config.yml
+    image: grafana/loki:3.6.0
+    ports: ["3100:3100"]
 
-  promtail:
-    image: grafana/promtail:2.9.0
-    container_name: promtail
+  alloy:
+    image: grafana/alloy:latest
     volumes:
-      - ./promtail/config.yml:/etc/promtail/config.yml:ro
+      - ./config.alloy:/etc/alloy/config.alloy:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
-      - /var/log:/var/log:ro
-    command: -config.file=/etc/promtail/config.yml
-    depends_on:
-      - loki
+    command: run /etc/alloy/config.alloy
 
-  app:
-    build: ./app
-    container_name: myapp
-    ports:
-      - "8080:8080"
-    depends_on:
-      - loki
-
-volumes:
-  prometheus_data:
-  loki_data:
-EOF
-
-docker compose up -d
-
-# Generate logs
-for i in {1..30}; do curl -s http://localhost:8080/ > /dev/null; done
-
-# Check Loki is ready
-curl http://localhost:3100/ready
+  grafana:
+    image: grafana/grafana:13.0.0
+    ports: ["3000:3000"]
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
 ```
 
-### Step 2 — Query logs via Loki API
+### 2. Prometheus scrape config
+
+**`monitoring/prometheus.yml`**:
+
+```yaml
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs: [{ targets: ["localhost:9090"] }]
+  - job_name: node
+    static_configs: [{ targets: ["node-exporter:9100"] }]
+  - job_name: cadvisor
+    static_configs: [{ targets: ["cadvisor:8080"] }]
+```
+
+### 3. Alloy — ship container logs to Loki
+
+**`monitoring/config.alloy`** — discover Docker containers, tail their logs, write to Loki:
+
+```river
+discovery.docker "containers" {
+  host = "unix:///var/run/docker.sock"
+}
+
+loki.source.docker "logs" {
+  host       = "unix:///var/run/docker.sock"
+  targets    = discovery.docker.containers.targets
+  forward_to = [loki.write.default.receiver]
+}
+
+loki.write "default" {
+  endpoint { url = "http://loki:3100/loki/api/v1/push" }
+}
+```
+
+### 4. Auto-provision Grafana's data sources
+
+**`monitoring/grafana/provisioning/datasources/ds.yml`**:
+
+```yaml
+apiVersion: 1
+datasources:
+  - name: Prometheus
+    type: prometheus
+    url: http://prometheus:9090
+    isDefault: true
+  - name: Loki
+    type: loki
+    url: http://loki:3100
+```
+
+### 5. Bring it up
 
 ```bash
-# Query logs for the last 5 minutes (URL-encoded LogQL)
-curl -G \
-  "http://localhost:3100/loki/api/v1/query_range" \
-  --data-urlencode 'query={container="myapp"}' \
-  --data-urlencode "start=$(date -d '5 minutes ago' +%s)000000000" \
-  --data-urlencode "end=$(date +%s)000000000" \
-  | python3 -m json.tool | head -40
-
-# Query for specific strings
-curl -G \
-  "http://localhost:3100/loki/api/v1/query_range" \
-  --data-urlencode 'query={container="myapp"} |= "GET"' \
-  --data-urlencode "start=$(date -d '10 minutes ago' +%s)000000000" \
-  --data-urlencode "end=$(date +%s)000000000" \
-  | python3 -m json.tool
+cd monitoring && docker compose up -d
 ```
 
-### Step 3 — Add structured logging to the app
+Open Grafana at `http://<host>:3000` (login `admin` / `admin`). Both data sources are already connected (**Connections → Data sources**).
 
-Structured logs (JSON) are much easier to query and parse:
+### 6. A dashboard
 
-```bash
-cat > ~/monitoring-labs/app/app.py << 'EOF'
-from flask import Flask, jsonify, Response, request
-from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
-import time
-import os
-import json
-import logging
+Don't build from scratch — import a community one. **Dashboards → New → Import**, enter ID **1860** (Node Exporter Full), pick the Prometheus data source. You now have CPU, memory, disk, and network for your host, live.
 
-# Structured JSON logging
-class JSONFormatter(logging.Formatter):
-    def format(self, record):
-        return json.dumps({
-            "timestamp": self.formatTime(record),
-            "level": record.levelname,
-            "message": record.getMessage(),
-            "logger": record.name,
-        })
+### 7. Query container logs in Explore
 
-handler = logging.StreamHandler()
-handler.setFormatter(JSONFormatter())
-logging.root.handlers = [handler]
-logging.root.setLevel(logging.INFO)
-logger = logging.getLogger("app")
-
-app = Flask(__name__)
-
-REQUEST_COUNT = Counter('http_requests_total', 'Total requests', ['method', 'endpoint', 'status'])
-REQUEST_DURATION = Histogram('http_request_duration_seconds', 'Request duration', ['endpoint'])
-
-@app.route("/")
-def index():
-    start = time.time()
-    logger.info(json.dumps({"event": "request", "path": "/", "method": request.method}))
-    result = jsonify({"message": "Hello!", "version": os.getenv("APP_VERSION", "1.0")})
-    REQUEST_COUNT.labels("GET", "/", 200).inc()
-    REQUEST_DURATION.labels("/").observe(time.time() - start)
-    return result
-
-@app.route("/health")
-def health():
-    REQUEST_COUNT.labels("GET", "/health", 200).inc()
-    return jsonify({"status": "ok"})
-
-@app.route("/metrics")
-def metrics():
-    return Response(generate_latest(), mimetype=CONTENT_TYPE_LATEST)
-
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=8080)
-EOF
-
-docker compose build app
-docker compose up -d app
-
-# Generate traffic
-for i in {1..20}; do curl -s http://localhost:8080/ > /dev/null; done
-
-# See structured logs from the container
-docker logs myapp
-```
-
-### Step 4 — LogQL queries to know
-
-In the Loki API or (tomorrow) Grafana:
+**Explore** (compass icon) → select **Loki** → run a LogQL query for your backend:
 
 ```logql
-# All logs from myapp
-{container="myapp"}
-
-# Only error-level logs
-{container="myapp"} |= "ERROR"
-
-# Parse JSON and filter
-{container="myapp"} | json | level = "ERROR"
-
-# Count log lines per minute
-count_over_time({container="myapp"}[1m])
-
-# Rate of log lines
-rate({container="myapp"}[5m])
+{container="backend"}      # logs from the API container
 ```
+
+Hit your app a few times (`curl http://<public_ip>/api/healthz`) and watch the request logs stream in — metrics and logs, same UI. Try `{container="postgres"}` too.
+
+### 8. Alert to Discord
+
+**Create the contact point:** in Discord, make a webhook (Server Settings → Integrations → Webhooks → copy URL). In Grafana: **Alerting → Contact points → Add** → type **Discord** → paste the webhook URL → **Test** (a message appears in Discord).
+
+**Create a rule:** **Alerting → Alert rules → New**. Use a query that will fire — e.g. a scrape target being down:
+
+```promql
+up{job="node"} == 0
+```
+
+Set **for = 1m**, point it at your Discord contact point, save. Now trigger it:
+
+```bash
+docker compose stop node-exporter      # the target goes down
+```
+
+Within ~a minute the rule goes **Pending → Firing** and a message lands in Discord. Start it again (`docker compose start node-exporter`) and Grafana sends the **resolved** notice.
+
+!!! success "You closed the loop"
+    Metrics, logs, dashboards, and a real alert to Discord — your system now tells *you* when something's wrong. That's production-grade observability from open-source parts.
+
+---
+
+## Advanced Topics
+
+- **postgres_exporter** — database metrics (connections, query rates) into Prometheus → [postgres_exporter](https://github.com/prometheus-community/postgres_exporter)
+- **Alertmanager** — Prometheus-native routing/grouping/silencing if you outgrow Grafana alerting → [Alertmanager](https://prometheus.io/docs/alerting/latest/alertmanager/)
+- **PromQL & LogQL** — the query languages behind dashboards and log search → [PromQL](https://prometheus.io/docs/prometheus/latest/querying/basics/) · [LogQL](https://grafana.com/docs/loki/latest/query/)
+- **SLOs & error budgets** — alert on user-facing objectives, not raw CPU → [Google SRE — SLOs](https://sre.google/workbook/implementing-slos/)
+- **Traces** — the third pillar with Grafana **Tempo** + OpenTelemetry → [Tempo](https://grafana.com/docs/tempo/latest/)
 
 ---
 
 ## Assignment
 
-1. What is the difference between Loki and Elasticsearch for log storage? What trade-offs does each make?
-2. What are Loki labels? Why does Loki use labels instead of full-text indexing?
-3. Modify the app to log a different message for `/health` vs `/` endpoints. Query Loki to show only health check logs.
-4. What does `count_over_time({container="myapp"}[5m])` return? How is it different from `rate()`?
+Monitor the app you built, not just the host.
+
+**Part 1 — An app dashboard + alert.** Add an alert that fires when **the app itself is unreachable** — either scrape a `/metrics` endpoint from the backend, or add a **blackbox** check that probes `http://<public_ip>/api/healthz`. Route it to Discord. Trigger it (stop the backend container) and capture the Discord message.
+
+**Part 2 — Logs to the rescue.** Cause an error in the app (e.g. break the `DATABASE_URL` and redeploy). Use Grafana **Explore** on Loki to **find the error log line** from the backend container, then fix it. Screenshot the failing log query and the recovery.
+
+**Submit:** the `monitoring/` stack files, a screenshot of your dashboard, the **Discord alert** (firing + resolved), and the Explore log query that caught your induced error.
+
+!!! danger "Stop the stack when done"
+    `docker compose down` on the monitoring stack, and `terraform destroy` on the app if you're not continuing to Day 7 soon.
 
 ---
 
 ## Further Reading
 
-- [Loki documentation](https://grafana.com/docs/loki/latest/)
-- [LogQL cheat sheet](https://grafana.com/docs/loki/latest/query/)
-- [Promtail configuration](https://grafana.com/docs/loki/latest/send-data/promtail/)
+**Watch**
+
+- 📺 [Prometheus Monitoring — Beginners Tutorial](https://youtu.be/h4Sl21AKiDg) — TechWorld with Nana; metrics, scraping, and Grafana
+- 📺 [Grafana Loki explained](https://youtu.be/1uk8LtQqsZQ) — logs the Loki way
+
+**Reference**
+
+- [Prometheus — Getting started](https://prometheus.io/docs/prometheus/latest/getting_started/) · [Grafana — Data sources](https://grafana.com/docs/grafana/latest/datasources/)
+- [Grafana Loki — docs](https://grafana.com/docs/loki/latest/) · [Grafana Alloy — docs](https://grafana.com/docs/alloy/latest/)
+- [Grafana — Alerting](https://grafana.com/docs/grafana/latest/alerting/) · [Discord contact point](https://grafana.com/docs/grafana/latest/alerting/configure-notifications/manage-contact-points/integrations/configure-discord/)
+- [node_exporter](https://github.com/prometheus/node_exporter) · [cAdvisor](https://github.com/google/cadvisor)
