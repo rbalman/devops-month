@@ -482,13 +482,16 @@ output "nat_eip" {
 ```
 
 !!! note "Runnable example"
-    [Example 1](#example-1-s3-buckets-with-loops) of today's lab builds S3 buckets with both `count` and `for_each` — the runnable version is at [`examples/terraform/loops`](https://github.com/rbalman/devops-month/tree/main/examples/terraform/loops). [Day 6 · §6.8](day-20.md) covers the fuller set (`for` expressions, more functions).
+    [Example 1](#example-1-s3-buckets-with-loops) of today's lab builds S3 buckets with both `count` and `for_each` — the runnable version is at [`examples/terraform/loops`](https://github.com/rbalman/devops-month/tree/main/examples/terraform/loops). [Day 6 · Section 6.8](day-20.md) covers the fuller set (`for` expressions, more functions).
 
 ---
 
 ## Lab · ~45 min
 
 Two small, self-contained examples that put today together. **Example 1** creates **S3 buckets with loops** — one set with `count`, one with a `for_each` map. **Example 2** builds a super-simple **module** (VPC + one EC2) and runs it as **dev** and **prod** from `.tfvars`. The finished files are in the repo under [`examples/terraform`](https://github.com/rbalman/devops-month/tree/main/examples/terraform) (`loops` and `multi-env`).
+
+!!! important "Do this first — set up the S3 backend (Section 3)"
+    Both examples keep their **state in S3**, so before anything else: create the state bucket once ([Section 3a](#3a-first-create-the-state-bucket)), then add the `backend "s3"` block ([Section 3b](#3b-then-point-your-config-at-it)) shown in each example — give each a **unique `key`** so they don't clash (`buckets/terraform.tfstate` for Example 1, `webserver/terraform.tfstate` for Example 2). `terraform init` migrates state into the bucket.
 
 ### Example 1 — S3 buckets with loops
 
@@ -498,7 +501,21 @@ A dedicated little project showing the two looping styles side by side. Work in 
 mkdir -p ~/tf-buckets && cd ~/tf-buckets
 ```
 
-Put a provider block in `main.tf`, then the two bucket resources below.
+First add a **`backend.tf`** so this project's state lives in S3 (bucket from [Section 3a](#3a-first-create-the-state-bucket)):
+
+```hcl
+terraform {
+  backend "s3" {
+    bucket       = "golive-tf-state-<you>"
+    key          = "buckets/terraform.tfstate"
+    region       = "us-east-1"
+    encrypt      = true
+    use_lockfile = true
+  }
+}
+```
+
+Then put a provider block in `main.tf`, and the two bucket resources below.
 
 #### 1a. Numbered buckets with `count`
 
@@ -547,7 +564,7 @@ output "named_buckets" {
 #### 1c. Deploy
 
 ```bash
-terraform init
+terraform init                                         # initializes the S3 backend
 terraform apply -var "prefix=golive-<your-initials>"   # bucket names must be globally unique
 terraform output
 
@@ -556,7 +573,7 @@ terraform destroy -var "prefix=golive-<your-initials>"
 
 ### Example 2 — A reusable module (VPC + EC2)
 
-A tiny module that stands up **one VPC** (using the registry module from [§4.5](#45-use-a-module-from-the-registry)), **one security group**, and **one EC2** — driven by just **two variables**. You then deploy it as `dev` and `prod` by swapping a `.tfvars` file.
+A tiny module that stands up **one VPC** (using the registry module from [Section 4.5](#45-use-a-module-from-the-registry)), **one security group**, and **one EC2** — driven by just **two variables**. You then deploy it as `dev` and `prod` by swapping a `.tfvars` file.
 
 Lay out the folders:
 
@@ -573,6 +590,7 @@ tf-lab/
 │       ├── outputs.tf
 │       └── versions.tf
 ├── main.tf               # root: just calls the module
+├── backend.tf            # S3 remote state (see Section 3)
 ├── variables.tf
 ├── outputs.tf
 ├── dev.tfvars
@@ -699,6 +717,20 @@ module "webserver" {
 }
 ```
 
+**`backend.tf`** — state in S3 (bucket from [Section 3a](#3a-first-create-the-state-bucket)), with its own `key`:
+
+```hcl
+terraform {
+  backend "s3" {
+    bucket       = "golive-tf-state-<you>"
+    key          = "webserver/terraform.tfstate"
+    region       = "us-east-1"
+    encrypt      = true
+    use_lockfile = true
+  }
+}
+```
+
 **`variables.tf`**:
 
 ```hcl
@@ -774,21 +806,57 @@ Adjacent to today — read the linked resource for each:
 
 ## Assignment
 
-**Take the `webserver` module further — a loop, a third environment, and remote state.**
+Build an **HTTPS web tier** with your own Terraform modules — two web servers behind a load balancer, served at `terraform.<your-domain>` over HTTPS — then deploy the app with **Ansible**.
 
-Start from your [Example 2](#example-2-a-reusable-module-vpc-ec2) code and extend it. This pulls together everything from today: modules, tfvars, loops, and remote state.
+!!! danger "Heads-up: this costs money"
+    An ALB (~$0.02–0.03/hr) and a Route 53 hosted zone ($0.50/mo) are billable — tear it all down when you're done (see **Clean up** below).
 
-1. **Add a loop to the module.** Give `webserver` an `instance_count` variable (default `1`) and use **`count`** on the EC2 so the module can create several instances. Output **all** their public IPs with the `[*]` splat.
-2. **Add a third environment.** Write a `staging.tfvars` (`instance_type = "t3.micro"`, `instance_count = 2`) and deploy it. Now three environments come from one module — each is just a `.tfvars` file. (Deploy one environment at a time, as in the lab.)
-3. **Move state to S3.** Add the remote backend from [§3](#3-remote-backend-s3-the-modern-way) — a versioned, encrypted bucket (bootstrap it with §3a) plus `use_lockfile`. In your write-up, name **three** best practices from [§2](#2-best-practices-for-managing-state) your setup satisfies, and how.
-4. **Tear down** with `terraform destroy` and confirm nothing's left.
+### Architecture
 
-**Stretch:** use the [§5.4](#54-conditional-creation-count-of-0-or-1) conditional-creation pattern to attach an Elastic IP (`aws_eip`) to the instance **only when `environment == "prod"`**.
+![HTTPS web tier: a browser reaches terraform.your-domain via a Route 53 record pointing at an internet-facing ALB with :80 and :443 listeners (443 using an ACM certificate), which forwards through a target group to two EC2 instances running nginx, each in a public subnet of the VPC; an Ansible control node configures both over SSH.](images/day-20-architecture.png){ width="820" }
 
-!!! danger "Destroy when done"
-    EC2 is billable (t3.micro may be free-tier). Finish with `terraform destroy`, and remove the state bucket when you're done with the course.
+*Zoom in / open the image in a new tab if the labels are hard to read.*
 
-**Submit:** your module + root + all three `.tfvars` files, the `terraform apply` plan summary (the `+` count), the output showing multiple instance IPs, the three best practices you satisfied, and proof of a clean `terraform destroy`.
+### Infra to create
+
+| # | Infra | Module | Details |
+|---|---|---|---|
+| 1 | 1 VPC + 2 public subnets | `vpc` | `10.0.0.0/16`, across 2 AZs |
+| 2 | 2 EC2 + security group | `ec2` | Ubuntu 24.04, `t3.micro`, **SSH key pair** attached; SG allows **22** from your IP, **80** from the ALB |
+| 3 | 1 ALB + target group + 2 listeners | `alb` | in the public subnets; **:443** HTTPS (ACM cert) → TG, **:80** → redirect to :443; TG **:80** → both EC2 |
+| 4 | Hosted zone + ACM cert + DNS record | `hostedzone` | zone for `<your-domain>`; ACM cert for `terraform.<your-domain>` (DNS-validated); alias `terraform.<your-domain>` → ALB |
+| 5 | Deploy the app | Ansible | install **Docker** + run an **nginx container** serving `site.zip` on :80, both EC2 |
+
+### Project layout
+
+```text
+terraform-webtier/
+├── modules/
+│   ├── vpc/          # 1 VPC + 2 public subnets
+│   ├── ec2/          # 1 EC2 + security group   (root uses it for 2)
+│   ├── alb/          # ALB + target group + listeners (:80, :443) — takes the cert ARN
+│   └── hostedzone/   # Route 53 zone + ACM cert (DNS-validated) + alias record
+├── dev/              # root env — calls the 4 modules
+└── prod/             # root env — same modules, different values
+```
+
+### Notes
+
+- **Route 53 delegation** can be done manually — point your registrar's nameservers at your Route 53 zone's NS records. (The first `apply` creates the zone; once DNS propagates, the ACM cert validates.)
+- Use the **S3 backend** ([Section 3](#3-remote-backend-s3-the-modern-way)) for remote state.
+- Create and deploy the **dev** infra.
+- Create and deploy the **prod** infra.
+- Use **Ansible** to install **Docker** and serve **`site.zip`** from an **nginx container** on port 80 — same pattern as the [Day 2 assignment](day-16.md#assignment). Get it here: [`site.zip`](https://github.com/user-attachments/files/30199374/site.zip).
+
+**Submit:** your modules + `dev`/`prod` roots, a screenshot showing the **padlock + your site**, a `curl` run a few times hitting both instances, and proof of a clean `terraform destroy`.
+
+### Clean up (don't skip)
+
+!!! danger "Destroy both environments when you're done"
+    ```bash
+    cd dev  && terraform destroy
+    cd ../prod && terraform destroy
+    ```
 
 ---
 
