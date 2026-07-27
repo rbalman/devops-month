@@ -1,9 +1,9 @@
 # Day 6 · Monitoring & Alerting
 
-> Your end-to-end app is live and self-deploying — but right now, if it falls over at 3 a.m., **you'd find out from an angry user.** The next discipline is knowing what your system is doing *before* anyone else does. Today you stand up the classic open-source observability stack — **Prometheus** for metrics, **Loki** for logs, **Grafana** as the single pane of glass — and wire an **alert to Discord** so a problem pages you, not your users. The moving parts are kept few on purpose: three stores, one UI, one notification channel.
+> A live, self-deploying app is great — but if it falls over at 3 a.m., **you'd find out from an angry user.** The discipline of observability is knowing what your system is doing *before* anyone else does. This stands up the classic open-source stack — **Prometheus** for metrics, **Loki** for logs, **Grafana** as the single pane of glass — and wires an **alert to Discord** so a problem pages you, not your users. The moving parts are kept few on purpose: three stores, one UI, one notification channel.
 
 !!! info "Where this fits"
-    Day 5 gave you a running frontend + backend + Postgres. Today you watch it. Tomorrow (Day 7) you secure it.
+    This assumes the end-to-end app (frontend + backend + Postgres) from [GitOps & the End-to-End Project](day-26.md) is running — this is how you watch it. Securing it is covered in [Security Best Practices](day-28.md).
 
 ## Learning Objectives
 
@@ -29,13 +29,13 @@
 
 You can't fix what you can't see. Three kinds of signal, each answering a different question:
 
-| Pillar | What it is | Answers | Tool today |
+| Pillar | What it is | Answers | Tool here |
 |---|---|---|---|
 | **Metrics** | Numbers over time (CPU %, request rate, error count) | "*Is* something wrong, and how much?" | **Prometheus** |
 | **Logs** | Timestamped text events | "*What* happened, exactly?" | **Loki** |
 | **Traces** | A request's path across services | "*Where* in the chain did it slow down?" | (out of scope) |
 
-The workflow: a **metric** alert tells you something's wrong → you open the **logs** to see what → (in bigger systems) a **trace** shows where. Today you wire the first two and view both through Grafana.
+The workflow: a **metric** alert tells you something's wrong → you open the **logs** to see what → (in bigger systems) a **trace** shows where. This lab wires the first two and views both through Grafana.
 
 ### 2. The stack — few moving parts, on purpose
 

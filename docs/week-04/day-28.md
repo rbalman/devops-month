@@ -1,9 +1,9 @@
 # Day 7 · Security Best Practices
 
-> You built the end-to-end project fast and simple — SSH open to the world, no TLS, wide IAM, unscanned images. That's fine to *learn* on; it's not fine to *run*. The final discipline of DevOps is **DevSecOps**: security isn't a gate at the end, it's built into every layer you've already touched. Today you go back through the whole project — pipeline, cloud, network, secrets, images — and apply the best practices that turn a working demo into something you'd defend in production. Then we close the course.
+> The end-to-end project was built fast and simple — SSH open to the world, no TLS, wide IAM, unscanned images. That's fine to *learn* on; it's not fine to *run*. **DevSecOps** means security isn't a gate at the end — it's built into every layer of what you've built. This goes back through the whole project — pipeline, cloud, network, secrets, images — and applies the best practices that turn a working demo into something you'd defend in production.
 
 !!! info "Security is a thread, not a day"
-    You can't bolt security on at the end any more than you can bolt on testing. Today names the practices and applies the highest-impact ones to your project — but the real habit is doing this *as you build*, every day.
+    You can't bolt security on at the end any more than you can bolt on testing. This names the practices and applies the highest-impact ones to the project — but the real habit is doing this *as you build*.
 
 ## Learning Objectives
 
@@ -47,7 +47,7 @@ Each layer of your project, its top risk, and the practice that addresses it:
 
 ### 3. Secrets — the number-one rule
 
-**Secrets never live in git.** You've done this right all week — GH Actions secrets, Ansible Vault, `TF_VAR` from the environment. Add one more layer: **scan** to make sure nothing slipped through. A tool like **Trivy** (or **gitleaks**) checks your code — and your git *history* — for anything that looks like a key. For values that live at runtime, graduate from Vault files to **AWS SSM Parameter Store** or **Secrets Manager**, which give you rotation and audit logs.
+**Secrets never live in git.** The right places for them are GH Actions secrets, Ansible Vault, and `TF_VAR` from the environment. Add one more layer: **scan** to make sure nothing slipped through. A tool like **Trivy** (or **gitleaks**) checks your code — and your git *history* — for anything that looks like a key. For values that live at runtime, graduate from Vault files to **AWS SSM Parameter Store** or **Secrets Manager**, which give you rotation and audit logs.
 
 ### 4. Least privilege — everywhere
 

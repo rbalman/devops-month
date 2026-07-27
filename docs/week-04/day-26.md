@@ -1,12 +1,12 @@
 # Day 5 · GitOps & the End-to-End Project
 
-> The last four days each automated **one** piece: tests, images, Terraform, Ansible. Today they converge into **the project** — the one you'll put on your résumé. A single git repo holds a **frontend**, a **backend**, a **Postgres database**, the **Terraform** that creates the server, and the **Ansible** that deploys all three as containers on it. And it's all driven by **GitOps**: git is the source of truth, a merge provisions and deploys, and nobody touches a server by hand. This *is* the capstone — everything from here on (monitoring, security) is layered on top of it.
+> The individual CI/CD pieces — tests, images, Terraform, Ansible — converge here into **the project** you'll put on your résumé. A single git repo holds a **frontend**, a **backend**, a **Postgres database**, the **Terraform** that creates the server, and the **Ansible** that deploys all three as containers on it. And it's all driven by **GitOps**: git is the source of truth, a merge provisions and deploys, and nobody touches a server by hand. This is the **capstone** — monitoring and security are layered on top of it.
 
 !!! info "One repo, the whole system"
     App code + infrastructure code + configuration code, together in git. Push a change and the pipeline provisions the infra (Terraform) and deploys the containers (Ansible). That's the end-to-end project.
 
 !!! danger "This builds a billable EC2 instance"
-    Today provisions a real EC2 (may be free-tier eligible). There's a **teardown** at the end — run it when you're done for the day.
+    This lab provisions a real EC2 (may be free-tier eligible). There's a **teardown** at the end — run it when you're done.
 
 ## Learning Objectives
 
@@ -49,7 +49,7 @@ The payoff: **git is your audit log, your review gate, and your rollback button.
 | Trigger | Merge to `main` runs `apply` | Agent notices git ≠ reality and reconciles |
 | Tools | GitHub Actions + Terraform/Ansible | **Argo CD**, **Flux** (Kubernetes) |
 
-What you build today is **push-based** — you already built the halves on Days 3–4. **Pull-based GitOps** (Argo CD / Flux) is Kubernetes-native and adds *continuous* reconciliation; it's the natural next step once you learn Kubernetes (Day 7's "what's next").
+The pipeline here is **push-based** — assembled from the [Terraform](day-24.md) and [Ansible](day-25.md) CI halves. **Pull-based GitOps** (Argo CD / Flux) is Kubernetes-native and adds *continuous* reconciliation; it's the natural next step once you learn Kubernetes.
 
 ### 3. The end-to-end project
 
@@ -148,7 +148,7 @@ output "public_ip" { value = aws_instance.app.public_ip }
 ```
 
 !!! note "We start simple on purpose"
-    SSH open to the world and no HTTPS is fine to *learn* on — but it's exactly what **Day 7 (security)** hardens: locking down the security group, adding TLS, scanning the images, and more. Build it working today; make it safe on Day 7.
+    SSH open to the world and no HTTPS is fine to *learn* on — but it's exactly what the [Security Best Practices](day-28.md) day hardens: locking down the security group, adding TLS, scanning the images, and more. Get it working first; make it safe as a follow-up.
 
 ### 2. The deployment — Ansible, three containers
 

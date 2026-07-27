@@ -5,7 +5,7 @@ The final week — **Ship It, Watch It, Secure It**. You'll take an **end-to-end
 **CI/CD with GitHub Actions — one skill per day:**
 
 - [Day 1 · CI/CD Fundamentals & First Pipeline](day-22.md) — CI vs delivery vs deployment, pipeline stages & gates, GitHub Actions anatomy, triggers, and a first lint→test→build workflow.
-- [Day 2 · GitHub Actions II — Build, Push & Deploy](day-23.md) — secrets & environments, caching, container registry; build a Docker image, publish it, and deploy to EC2.
+- [Day 2 · GitHub Actions II — Build, Push & Deploy](day-23.md) — variables & secrets, expressions & functions, step/job outputs, conditions, and connecting to AWS (OIDC + CLI); build an image, push it, and deploy.
 - [Day 3 · Terraform in CI/CD](day-24.md) — OIDC keyless AWS auth and running `plan`/`apply` from a pipeline, on a small standalone config.
 - [Day 4 · Ansible in CI/CD](day-25.md) — lint, syntax-check, and dry-run gates, secrets from CI, and applying config on merge.
 
@@ -19,4 +19,4 @@ The final week — **Ship It, Watch It, Secure It**. You'll take an **end-to-end
 - [Day 7 · Security Best Practices](day-28.md) — DevSecOps: secrets, least-privilege, network hardening, image + IaC scanning, supply-chain safety; plus course wrap-up and what comes next.
 
 !!! warning "Mind the meter"
-    This week stands up an ALB, a NAT gateway, and an RDS instance — all billable beyond the free tier. **Every AWS lab ends with a teardown. Run it**, and destroy the capstone once you've captured your screenshots.
+    These labs stand up real AWS resources — an EC2 instance for the project, and more in the optional exercises — all billable beyond the free tier. **Every AWS lab ends with a teardown. Run it**, and destroy the capstone once you've captured your screenshots.

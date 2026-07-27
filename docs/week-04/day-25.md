@@ -1,9 +1,9 @@
 # Day 4 · Ansible in CI/CD — Automating Configuration with GitHub Actions
 
-> Yesterday you ran Terraform from a pipeline. Today it's **Ansible's** turn. Configuration drifts just like infrastructure — someone SSHes in, tweaks nginx, forgets. Running your playbooks from CI means every config change is **reviewed, linted, dry-run, and applied by a machine** — never by hand on a box nobody else knows about. As with yesterday, we keep the example tiny: one playbook against one server, so the focus stays on the *automation pattern*.
+> Running Terraform from a pipeline has an equivalent for configuration: **Ansible**. Configuration drifts just like infrastructure — someone SSHes in, tweaks nginx, forgets. Running your playbooks from CI means every config change is **reviewed, linted, dry-run, and applied by a machine** — never by hand on a box nobody else knows about. The example is kept tiny: one playbook against one server, so the focus stays on the *automation pattern*.
 
 !!! info "Where this fits"
-    Day 3 automated Terraform in CI; today automates Ansible. That completes the toolkit — lint/test/build, image publish, IaC, config management, all in GitHub Actions. Day 5 combines them into a git-driven, end-to-end deploy.
+    This applies the CI/CD pattern to **Ansible**, completing the toolkit — lint/test/build, image publish, IaC, and config management, all in GitHub Actions. [GitOps & the End-to-End Project](day-26.md) combines them into a git-driven, end-to-end deploy.
 
 ## Learning Objectives
 

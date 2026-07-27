@@ -1,9 +1,9 @@
 # Day 3 · Terraform in CI/CD — Automating IaC with GitHub Actions
 
-> In Week 3 you ran `terraform apply` from your laptop. That's fine to learn on, but it doesn't scale: whose laptop is the source of truth? Who reviewed the change? What if two people apply at once? Today you move Terraform **into the pipeline** — the same `fmt → validate → plan → apply` flow, but run by GitHub Actions on a clean machine, reviewed like code, and authenticated to AWS with **no stored keys** via OIDC. We keep it deliberately small: one tiny Terraform config, so the focus is the *automation*, not the infrastructure.
+> Running `terraform apply` from your laptop (Week 3) is fine to learn on, but it doesn't scale: whose laptop is the source of truth? Who reviewed the change? What if two people apply at once? Moving Terraform **into the pipeline** fixes all of that — the same `fmt → validate → plan → apply` flow, but run by GitHub Actions on a clean machine, reviewed like code, and authenticated to AWS with **no stored keys** via OIDC. The example is kept deliberately small: one tiny Terraform config, so the focus is the *automation*, not the infrastructure.
 
 !!! info "Where this fits"
-    Day 1 automated lint/test/build; Day 2 automated build-image/publish. Today automates **Terraform**. Tomorrow does the same for **Ansible**. On Day 5 you'll combine all four on the end-to-end project.
+    This applies the CI/CD pattern to **Terraform**. Running **Ansible** from CI is covered in [Ansible in CI/CD](day-25.md), and [GitOps & the End-to-End Project](day-26.md) combines them to provision and deploy the whole app.
 
 ## Learning Objectives
 
@@ -201,7 +201,7 @@ You just changed AWS infrastructure **without touching a terminal or storing a k
 Add a **manual destroy** you can trigger from the UI — a `workflow_dispatch` workflow that runs `terraform destroy -auto-approve` — or just run it once locally to remove the bucket. Don't leave orphaned resources.
 
 !!! success "What you just built"
-    A keyless, reviewable Terraform pipeline: PRs show the plan, merges apply it. Tomorrow you do the same for **Ansible**; Day 5 combines both to run the whole end-to-end project.
+    A keyless, reviewable Terraform pipeline: PRs show the plan, merges apply it. The same pattern for **Ansible** is in [Ansible in CI/CD](day-25.md); [GitOps & the End-to-End Project](day-26.md) combines both.
 
 ---
 

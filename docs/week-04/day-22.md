@@ -11,7 +11,7 @@
 - Describe a pipeline as **stages** with **gates** — and why automating them beats doing it by hand
 - Name the pieces of **GitHub Actions**: workflow, event/trigger, job, step, runner, action
 - Know the four triggers you'll use most: **`push`, `pull_request`, `workflow_dispatch`, `schedule`**
-- **Lab:** write a workflow that **lints, tests, and builds** the sample app on every push and PR, and read its logs
+- **Lab:** build a workflow up from scratch — single job of shell steps, `checkout`, parallel jobs, `needs` — then run a real CI pipeline (lint → test → build) on the reference app
 
 ---
 
@@ -125,7 +125,7 @@ Every workflow is built from the same handful of keys — the full **[workflow s
 Two rules the format enforces: it's **YAML**, so indentation is significant (2 spaces, **never tabs**), and the file must live in **`.github/workflows/`** at the repo root to be picked up.
 
 !!! note "Actions are versioned — pin the major"
-    `uses: actions/checkout@v7` pins to major version 7; you get bug/security patches within v7 but never a surprise breaking change. Always pin at least the major (`@v7`), never leave it off. This course uses the current majors: `checkout@v7`, `setup-node@v6`, and the Docker/AWS actions we meet on Day 2.
+    `uses: actions/checkout@v7` pins to major version 7; you get bug/security patches within v7 but never a surprise breaking change. Always pin at least the major (`@v7`), never leave it off. This course uses the current majors: `checkout@v7`, `setup-node@v6`, and the Docker and AWS actions used in the [GitHub Actions II](day-23.md) lab.
 
 ### 5. The four triggers you'll actually use
 
@@ -148,22 +148,160 @@ on:
   workflow_dispatch:          # + a manual button
 ```
 
+→ **Reference:** [Events that trigger workflows](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows) · [`on`](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#on)
+
+### 6. Multiple jobs & dependencies
+
+A workflow can have **many jobs**. By default they run **in parallel**, each on its own fresh runner. Use **`needs:`** to make one job wait for another — that's how you order stages like *lint → test → deploy*:
+
+```yaml
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "linting…"
+
+  test:
+    needs: lint            # runs only after lint succeeds
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "testing…"
+
+  deploy:
+    needs: [lint, test]    # waits for BOTH to succeed
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "deploying…"
+```
+
+| `needs:` value | Effect |
+|---|---|
+| *(omitted)* | Job starts immediately, **in parallel** with the others |
+| `needs: lint` | Waits for `lint` to **pass** first |
+| `needs: [lint, test]` | Waits for **both** (a fan-in) |
+
+If a needed job **fails**, everything that depends on it is **skipped** — the red gate stops the line.
+
+!!! note "Jobs don't share a filesystem"
+    Each job runs on a **separate runner** with a clean disk, so `deploy` can't see files `test` created. To pass data between jobs you use **job outputs** or **artifacts** — covered in [GitHub Actions II](day-23.md).
+
+→ **Reference:** [Using jobs in a workflow](https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/use-jobs-in-a-workflow) · [`jobs.<job_id>.needs`](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idneeds)
+
 ---
 
-## Lab · ~45 min
+## Lab · ~55 min
 
-Build your first CI pipeline: a workflow that **lints, tests, and builds** the API on every push and pull request. You'll start from the reference app, understand its workflow, push it, and watch GitHub run it.
+Build a workflow from scratch, one concept at a time — a single job, then `checkout`, then multiple jobs, then dependencies. You'll learn the anatomy by *writing* it, not reading it.
 
-!!! note "Node here is just a vehicle for CI"
-    You don't need to know Node — the *shape* (install deps → lint → test → build) is identical in Python, Go, or Java. Focus on the pipeline, not the language.
+### 1. Create a test repo
 
-### 1. Get the reference app
+Make a fresh repo to experiment in — no app needed, you're only writing YAML. Create an empty repo named **`actions-lab`** on github.com, then:
 
-You won't hand-type the app — a complete, runnable version lives in the course repo at [`examples/cicd/first-pipeline`](https://github.com/rbalman/devops-month/tree/main/examples/cicd/first-pipeline). Start your own repo from it:
+```bash
+git clone https://github.com/<you>/actions-lab.git
+cd actions-lab
+mkdir -p .github/workflows
+```
+
+### 2. One job, a few shell steps
+
+Create **`.github/workflows/hello.yml`** — a single job whose steps run shell commands:
+
+```yaml
+name: Hello
+
+on: [push, workflow_dispatch]      # on every push, plus a manual button
+
+jobs:
+  greet:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Say hello
+        run: echo "Hello from GitHub Actions!"
+      - name: Show the runner
+        run: |
+          echo "OS: $RUNNER_OS"
+          echo "Repo: $GITHUB_REPOSITORY   Commit: $GITHUB_SHA"
+      - name: A tiny script
+        run: |
+          for i in 1 2 3; do echo "step $i"; done
+```
+
+Push it, then open the repo's **Actions** tab → the **Hello** run → the **greet** job, and expand each step to read its output:
+
+```bash
+git add . && git commit -m "hello workflow" && git push
+```
+
+### 3. Check out the repo
+
+The runner starts **empty** — it doesn't have your code until you *check it out*. Prove it: add a file, then a checkout step.
+
+```bash
+echo "hello repo" > README.md
+git add README.md && git commit -m "add readme"
+```
+
+Give `greet` these two steps **at the top**, above the others:
+
+```yaml
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v7      # pulls your code onto the runner
+      - name: List the files
+        run: ls -la                    # README.md is now here
+      # …the hello steps from before…
+```
+
+Push, and the **List the files** step now shows `README.md`. Delete the checkout step and it disappears — that's exactly the difference `actions/checkout` makes.
+
+### 4. Two jobs, running in parallel
+
+Jobs run **in parallel** by default, each on its own fresh runner. Add a second job to `hello.yml`:
+
+```yaml
+jobs:
+  greet:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "greet job"
+
+  farewell:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "farewell job"
+```
+
+Push and watch: the run shows **both jobs side by side**, starting at the same time.
+
+### 5. Dependent jobs (`needs`)
+
+To make one job wait for another, add **`needs:`**. Make `farewell` depend on `greet`:
+
+```yaml
+  farewell:
+    needs: greet             # runs only after greet succeeds
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "farewell — only after greet passed"
+```
+
+Push: now they run **in sequence**, `farewell` starting only once `greet` is green. Then make `greet` fail — add a step `run: exit 1` — and push again: `farewell` is **skipped**, because its dependency failed. That's the gate from the theory, running in your own repo.
+
+!!! success "What you just built"
+    From a blank repo, you built a workflow up piece by piece — one job of shell steps, checked out your code, ran jobs in parallel, then chained them with `needs`. That's the anatomy of every pipeline.
+
+### 6. Now do it for real — a CI pipeline
+
+Now apply everything to a real app — a reference pipeline that **lints, tests, and builds** a small Node service.
+
+#### 6a. Get the reference app
+
+A complete, runnable version lives in the course repo at [`examples/cicd/first-pipeline`](https://github.com/rbalman/devops-month/tree/main/examples/cicd/first-pipeline). Start a fresh repo from it:
 
 ```bash
 git clone https://github.com/rbalman/devops-month.git
-cp -r devops-month/examples/cicd/first-pipeline ~/sample-app
+cp -r devops-month/examples/cicd/first-pipeline/ ~/sample-app
 cd ~/sample-app
 git init
 ```
@@ -172,7 +310,7 @@ It's a tiny **Node.js / Express API** — just enough to have something real to 
 
 ```text
 sample-app/
-├── .github/workflows/ci.yml   # the pipeline (Section 2 walks through it)
+├── .github/workflows/ci.yml   # the pipeline (6b walks through it)
 └── api/
     ├── app.js            # the Express app (exported so tests can import it)
     ├── server.js         # starts the app (separate so tests don't open a port)
@@ -182,14 +320,7 @@ sample-app/
     └── package-lock.json # exact dep versions — required by `npm ci`
 ```
 
-| File | Why it's here |
-|---|---|
-| `app.js` / `server.js` | the app is split from its server start, so tests import the app **without opening a port** |
-| `app.test.js` | the thing CI runs — one Jest test hitting `/healthz` |
-| `eslint.config.js` | gives `npm run lint` something to check |
-| `package-lock.json` | pins exact versions so CI installs are **reproducible** (`npm ci`) |
-
-Verify it runs on your **Ubuntu 24.04** box before automating (install Node 24 first if needed — the [example README](https://github.com/rbalman/devops-month/tree/main/examples/cicd/first-pipeline) has the one-liner):
+Verify it runs on your **Ubuntu 24.04** box (install Node 24 first if needed — the [example README](https://github.com/rbalman/devops-month/tree/main/examples/cicd/first-pipeline) has the one-liner):
 
 ```bash
 cd api
@@ -197,9 +328,9 @@ npm ci
 npm run lint && npm test      # both should pass
 ```
 
-### 2. Understand the workflow
+#### 6b. Read its workflow
 
-The example already ships the pipeline at **`.github/workflows/ci.yml`** — workflows must live in `.github/workflows/` at the **repo root** (not inside `api/`). Open it and read it against [Section 4](#4-github-actions-the-anatomy):
+The example ships the pipeline at **`.github/workflows/ci.yml`**. Open it — you'll recognize every part you just practiced (jobs, steps, `uses:`, `run:`), plus a couple of real-world touches (`setup-node` with caching, a `working-directory`):
 
 ```yaml
 name: CI
@@ -208,7 +339,7 @@ on:
   push:
     branches: [main]
   pull_request:
-  workflow_dispatch:          # lets you trigger it by hand too
+  workflow_dispatch:
 
 jobs:
   build:
@@ -240,12 +371,10 @@ jobs:
         run: npm pack        # stand-in "build" step — packages the app into a tarball
 ```
 
-Read it top to bottom against [Section 4](#4-github-actions-the-anatomy): one **workflow** (`CI`), triggered by three **events**, with one **job** (`build`) on an `ubuntu-latest` **runner**, made of **steps** that are either an **action** (`uses:`) or a command (`run:`).
-
 !!! tip "`npm ci` vs `npm install` in CI"
     Use **`npm ci`** in pipelines: it installs **exactly** what's in `package-lock.json` (reproducible) and fails if the lockfile is out of sync — instead of quietly changing it like `npm install` can.
 
-### 3. Push it and watch it run
+#### 6c. Push it, and see a gate stop the line
 
 ```bash
 cd ~/sample-app
@@ -257,31 +386,17 @@ git branch -M main
 git push -u origin main
 ```
 
-Open your repo on GitHub → **Actions** tab. You'll see the **CI** workflow running. Click into it, then into the **build** job, and expand each step to read its logs — this is where you'll live when something fails.
-
-### 4. Make it fail (on purpose), then fix it
-
-CI only earns trust if you've seen it catch something. Break the test:
+Open the repo's **Actions** tab and watch the **CI** workflow run. Then prove the gate works — break the test:
 
 ```javascript
 // in api/app.test.js, change the expectation to a wrong value
 expect(res.body.status).toBe("BROKEN");
 ```
 
-Commit and push. This time the **Test** step goes red, the **Build** step never runs (the gate stopped the line), and the commit gets a ❌ on GitHub. Revert the change, push again, and watch it go green ✅.
+Commit and push: the **Test** step goes red, **Build** never runs (the gate stopped the line), and the commit gets a ❌. Revert, push again, and watch it go green ✅.
 
-### 5. Add a status badge
-
-Show the world your build is green. Add this to a `README.md` at the repo root (swap in your username/repo):
-
-```markdown
-![CI](https://github.com/<you>/sample-app/actions/workflows/ci.yml/badge.svg)
-```
-
-Commit, push, and the badge renders live in your README — red or green with every push.
-
-!!! success "What you just built"
-    A workflow that runs on every push and PR, on a clean machine, and **blocks broken code** at the test gate — the "CI" in CI/CD.
+!!! success "The full picture"
+    A real CI pipeline that runs on every push and PR, on a clean machine, and **blocks broken code** at the test gate — the "CI" in CI/CD.
 
 ---
 
@@ -294,33 +409,6 @@ Adjacent topics — skim the linked docs:
 - **Caching** — speed up installs by caching dependencies between runs → [Caching dependencies](https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-your-workflow-does/cache-dependencies)
 - **Concurrency** — cancel superseded runs when you push again quickly → [`concurrency`](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#concurrency)
 - **The Actions marketplace** — thousands of prebuilt actions before you write your own → [Marketplace](https://github.com/marketplace?type=actions)
-
----
-
-## Assignment
-
-Extend this pipeline so it behaves like a real team's CI.
-
-**Part 1 — A second job with a dependency.** Add a **`lint`** job that runs *separately* from `test`, and make the build depend on it so the pipeline reads **lint → build**:
-
-- Move linting into its own job named `lint`.
-- Add `needs: lint` to the `build` job so it only runs after lint passes.
-- Push a commit with a lint error (e.g. an unused variable) and confirm `build` is **skipped**, not just failed.
-
-**Part 2 — Trigger it on a schedule.** Add a **`schedule`** trigger that runs the workflow every morning at 6:00 UTC, so you'd catch a dependency that breaks even when nobody pushed:
-
-```yaml
-on:
-  schedule:
-    - cron: "0 6 * * *"
-```
-
-Use [crontab.guru](https://crontab.guru/) to confirm the expression, and note in your README what time that is in **your** timezone.
-
-**Submit:** your `ci.yml`, a screenshot of the Actions tab showing the `lint` → `build` dependency (one run where `build` was skipped because `lint` failed), and your README with the badge + the schedule note.
-
-!!! tip "Keep this repo"
-    It's a working CI foundation you can extend into a full CI/**CD** pipeline — image build, registry push, and deploy.
 
 ---
 
