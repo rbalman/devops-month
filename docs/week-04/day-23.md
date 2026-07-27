@@ -1,6 +1,6 @@
 # Day 2 · GitHub Actions II — Build, Push & Deploy
 
-> A first CI workflow runs a few commands and stops. Real pipelines need to **carry data** — a computed version tag, a build's result feeding a deploy — and to **talk to the outside world** with credentials, without leaking them. This covers the pieces that make that possible: **variables and secrets**, **expressions and functions**, passing **outputs** between steps and jobs, **conditions**, and **connecting to AWS** to run the **AWS CLI** — then puts them together to **build a Docker image, push it to a registry, and deploy**.
+> A first CI workflow runs a few commands and stops. Real pipelines need to **carry data** — a computed version tag, a build's result feeding a deploy — and to **talk to the outside world** with credentials, without leaking them. This covers the pieces that make that possible: **variables and secrets**, **expressions and functions**, passing **outputs** between steps and jobs, **conditions**, and **connecting to AWS** to run the **AWS CLI** — then puts them together to **build a Docker image, push it to Amazon ECR, and deploy the container to a server**.
 
 !!! info "Where this fits"
     A basic CI workflow (lint → test → build) is covered in [CI/CD Fundamentals & First Pipeline](day-22.md). This adds the language features and credentials a real **build → push → deploy** pipeline needs.
@@ -56,7 +56,7 @@ GitHub also injects **default** environment variables into every run:
 | `GITHUB_RUN_NUMBER` | an incrementing run count |
 | `RUNNER_OS` | `Linux` / `Windows` / `macOS` |
 
-The same data is available inside expressions via the `github` context (Section 3).
+The same data is available inside expressions via the `github` context (Section 5).
 
 → **Reference:** [Store information in variables](https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/store-information-in-variables) · [Default environment variables](https://docs.github.com/en/actions/reference/workflows-and-actions/variables)
 
@@ -91,22 +91,29 @@ Both `vars` and secrets come in **repository**, **environment**, and **organizat
 
 → **Reference:** [Configuration variables](https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/store-information-in-variables) · [Using secrets](https://docs.github.com/en/actions/how-tos/security-for-github-actions/security-guides/using-secrets-in-github-actions) · [`GITHUB_TOKEN`](https://docs.github.com/en/actions/security-for-github-actions/security-guides/automatic-token-authentication)
 
-### 3. Expressions & functions
+### 3. Conditions — `if:`
 
-Anything inside **`${{ }}`** is an **expression**, evaluated before the step runs. Expressions read **contexts** (objects of run data) and can use operators and **functions**.
+An `if:` on a **job** or a **step** decides whether it runs. Inside `if:`, the `${{ }}` is optional:
 
-Contexts you'll reach for most:
+```yaml
+deploy:
+  needs: build
+  if: github.ref == 'refs/heads/main'        # only deploy from main
+  runs-on: ubuntu-latest
+  steps:
+    - run: ./deploy.sh
+    - name: Notify on failure
+      if: failure()                          # only if an earlier step failed
+      run: ./notify.sh
+```
 
-| Context | Holds |
-|---|---|
-| `github` | event data — `github.sha`, `github.ref`, `github.actor`, `github.repository` |
-| `env` | your `env:` variables |
-| `vars` / `secrets` | configuration variables / secrets |
-| `steps` | outputs of earlier steps (Section 4) |
-| `needs` | outputs of jobs this one depends on (Section 4) |
-| `runner` | runner info (`runner.os`) |
+Common patterns: `if: github.event_name == 'pull_request'`, `if: github.ref == 'refs/heads/main'`, `if: contains(github.event.head_commit.message, '[deploy]')`, and status functions like `failure()`. What you write inside an `if:` is just an **expression**, built from **functions** (Section 4) and **contexts** (Section 5).
 
-Handy built-in **functions**:
+→ **Reference:** [`jobs.<job_id>.if`](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idif)
+
+### 4. Expressions & functions
+
+Anything inside **`${{ }}`** is an **expression**, evaluated before the step runs. Expressions combine **contexts** (Section 5), operators (`==`, `!=`, `&&`, `||`, `!`), and built-in **functions**:
 
 | Function | Does |
 |---|---|
@@ -116,7 +123,7 @@ Handy built-in **functions**:
 | `hashFiles('**/package-lock.json')` | hash of matching files — a great cache key |
 | `toJSON(x)` | dump a whole context (debugging) |
 
-Plus **status functions** used in conditions: `success()`, `failure()`, `cancelled()`, `always()`.
+Plus **status functions** used in conditions (Section 3): `success()`, `failure()`, `cancelled()`, `always()`.
 
 ```yaml
 - run: echo "building ${{ github.repository }} @ ${{ github.sha }}"
@@ -124,9 +131,24 @@ Plus **status functions** used in conditions: `success()`, `failure()`, `cancell
   if: startsWith(github.ref, 'refs/tags/')
 ```
 
-→ **Reference:** [Expressions](https://docs.github.com/en/actions/reference/workflows-and-actions/expressions) · [Contexts](https://docs.github.com/en/actions/reference/workflows-and-actions/contexts)
+→ **Reference:** [Expressions & functions](https://docs.github.com/en/actions/reference/workflows-and-actions/expressions)
 
-### 4. Passing data — step & job outputs
+### 5. Contexts
+
+A **context** is an object of run data you read inside an expression with dot notation (`github.sha`). The ones you'll reach for most:
+
+| Context | Holds |
+|---|---|
+| `github` | event data — `github.sha`, `github.ref`, `github.actor`, `github.repository` |
+| `env` | your `env:` variables |
+| `vars` / `secrets` | configuration variables / secrets |
+| `steps` | outputs of earlier steps (Section 6) |
+| `needs` | outputs of jobs this one depends on (Section 6) |
+| `runner` | runner info (`runner.os`) |
+
+→ **Reference:** [Contexts](https://docs.github.com/en/actions/reference/workflows-and-actions/contexts)
+
+### 6. Passing data — step & job outputs
 
 Steps and jobs are isolated, so values are passed **explicitly**.
 
@@ -160,27 +182,7 @@ jobs:
 
 → **Reference:** [Pass information between jobs](https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/pass-information-between-jobs) · [`jobs.<job_id>.outputs`](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idoutputs)
 
-### 5. Conditions — `if:`
-
-An `if:` on a **job** or a **step** decides whether it runs. Inside `if:`, the `${{ }}` is optional:
-
-```yaml
-deploy:
-  needs: build
-  if: github.ref == 'refs/heads/main'        # only deploy from main
-  runs-on: ubuntu-latest
-  steps:
-    - run: ./deploy.sh
-    - name: Notify on failure
-      if: failure()                          # only if an earlier step failed
-      run: ./notify.sh
-```
-
-Common patterns: `if: github.event_name == 'pull_request'`, `if: github.ref == 'refs/heads/main'`, `if: contains(github.event.head_commit.message, '[deploy]')`, and the status functions from Section 3.
-
-→ **Reference:** [`jobs.<job_id>.if`](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idif) · [Expressions](https://docs.github.com/en/actions/reference/workflows-and-actions/expressions)
-
-### 6. Connecting to AWS & running the AWS CLI
+### 7. Connecting to AWS & running the AWS CLI
 
 To deploy to AWS, the pipeline needs credentials. The simplest way to see how it works: create an **IAM user**, give it an **access key** (an access key ID + a secret access key), store both as **GitHub secrets**, and hand them to `aws-actions/configure-aws-credentials` — which configures the **AWS CLI** (preinstalled on GitHub runners) for the rest of the job:
 
@@ -210,7 +212,7 @@ After that step, **every `aws` command in the job is authenticated**.
 
 ## Lab · ~45 min
 
-Extend your **`sample-app`** repo (from Day 1) to build the API into a Docker image and push it to **Amazon ECR**. You'll add a **Dockerfile** and a new **workflow file** — the workflow exercises the secrets, variable, step output, and AWS CLI auth from the theory.
+Extend your **`sample-app`** repo (from Day 1) to build the API into a Docker image and push it to **Amazon ECR**. You'll add a **Dockerfile** and a new **workflow file** — the workflow exercises the secrets, variable, step output, and AWS authentication from the theory.
 
 ### 1a. Add a Dockerfile
 
@@ -246,11 +248,11 @@ aws ecr create-repository --repository-name sample-api --region us-east-1
 Then, in the GitHub repo (**Settings → Secrets and variables → Actions**):
 
 - **Variable** `AWS_REGION = us-east-1`.
-- **Secrets** `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` — the access key of an IAM user allowed to push to ECR (stored as **secrets**, never in the YAML — see [Section 6](#6-connecting-to-aws-running-the-aws-cli)).
+- **Secrets** `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` — the access key of an IAM user allowed to push to ECR (stored as **secrets**, never in the YAML — see [Section 7](#7-connecting-to-aws-running-the-aws-cli)).
 
 ### 1c. Add the workflow
 
-Add **`.github/workflows/ecr.yml`** — authenticate to AWS, log in to ECR, then build and push the image tagged with the commit's short SHA:
+Add **`.github/workflows/ecr.yml`** — authenticate to AWS, log in to ECR, then build and push the image tagged with the commit SHA:
 
 ```yaml
 name: Build and push to ECR
@@ -304,7 +306,7 @@ Open the **Actions** tab and watch the **Build and push to ECR** workflow run. W
 aws ecr list-images --repository-name sample-api --region us-east-1
 ```
 
-(or open the repository in the ECR console) — the image is there, tagged with your commit's short SHA.
+(or open the repository in the ECR console) — the image is there, tagged with your commit SHA.
 
 !!! success "What you just built"
     A workflow that builds your app into a Docker image and publishes it to a private AWS registry — wired together with secrets, a variable, step outputs, and AWS authentication from the theory.

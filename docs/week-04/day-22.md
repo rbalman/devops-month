@@ -46,7 +46,7 @@ The distinction that trips people up is the two CDs: **delivery** stops at "read
 
 ### 2. Why automate — the pain it removes
 
-You've felt every one of these this month:
+You've felt every one of these:
 
 - **"Works on my machine."** A pipeline runs on a **clean, identical machine** every time, so environment drift can't hide bugs.
 - **Forgotten steps.** Deploying by hand is a checklist you *remember* — until you don't. A pipeline is the checklist, executed the same way every time.
@@ -76,7 +76,7 @@ Two rules make this powerful:
 
     So the fuller picture is **build (compile) → test → build (package) → deploy**. Interpreted languages like JavaScript and Python have no compile step, so their pipelines read **lint → test → package** — which is exactly what the lab below does.
 
-The lab below builds the first stages — **lint, test, and package** the app. Publishing the image to a registry and deploying it are covered in [GitHub Actions II — Build, Push & Deploy](day-23.md).
+The lab below ends with a pipeline that runs those first stages — **lint, test, and package** the app. Publishing the image to a registry and deploying it are covered in [GitHub Actions II — Build, Push & Deploy](day-23.md).
 
 ### 4. GitHub Actions — the anatomy
 
@@ -227,11 +227,13 @@ jobs:
           for i in 1 2 3; do echo "step $i"; done
 ```
 
-Push it, then open the repo's **Actions** tab → the **Hello** run → the **greet** job, and expand each step to read its output:
+Push it:
 
 ```bash
 git add . && git commit -m "hello workflow" && git push
 ```
+
+Open the repo's **Actions** tab → the **Hello** run → the **greet** job, and expand each step to read its output.
 
 ### 3. Check out the repo
 
