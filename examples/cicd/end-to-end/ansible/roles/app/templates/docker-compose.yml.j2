@@ -1,0 +1,18 @@
+# Rendered by Ansible onto each app instance. Two containers on one network:
+# nginx (published on :80, the ALB target) proxies /api to the backend, which
+# talks to Postgres on the dedicated db instance.
+services:
+  backend:
+    image: {{ backend_image }}
+    environment:
+      DATABASE_URL: "postgres://{{ db_username }}:{{ db_password }}@{{ db_host }}:5432/{{ db_name }}"
+      PORT: "3000"
+    restart: always
+
+  frontend:
+    image: {{ frontend_image }}
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    restart: always

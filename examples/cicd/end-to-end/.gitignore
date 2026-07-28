@@ -1,0 +1,14 @@
+# Node
+node_modules/
+
+# Local env (never commit real creds)
+.env
+
+# Terraform — ignore local state + provider binaries, but KEEP .terraform.lock.hcl
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+
+# Ansible
+*.retry

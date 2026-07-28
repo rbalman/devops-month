@@ -1,0 +1,19 @@
+# Rendered by Ansible onto the dedicated db instance.
+# Postgres is published on :5432 so the app instances can reach it over the
+# private network (the db security group only allows the app security group).
+services:
+  db:
+    image: {{ postgres_image }}
+    environment:
+      POSTGRES_USER: "{{ db_username }}"
+      POSTGRES_PASSWORD: "{{ db_password }}"
+      POSTGRES_DB: "{{ db_name }}"
+    volumes:
+      - dbdata:/var/lib/postgresql/data
+      - /opt/app/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    ports:
+      - "5432:5432"
+    restart: always
+
+volumes:
+  dbdata:

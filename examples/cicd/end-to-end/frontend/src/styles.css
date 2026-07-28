@@ -1,0 +1,48 @@
+:root {
+  color-scheme: light dark;
+  --fg: #1a1a2e;
+  --accent: #0f766e;
+}
+* { box-sizing: border-box; }
+body {
+  font-family: system-ui, -apple-system, sans-serif;
+  margin: 0;
+  padding: 2rem 1rem;
+  display: flex;
+  justify-content: center;
+  background: #f4f4f5;
+  color: var(--fg);
+}
+main { width: 100%; max-width: 32rem; }
+h1 { margin: 0 0 0.25rem; }
+.sub { margin: 0 0 1.5rem; color: #666; font-size: 0.9rem; }
+.sub code { background: #e4e4e7; padding: 0 0.25rem; border-radius: 3px; }
+form { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
+input {
+  flex: 1;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid #d4d4d8;
+  border-radius: 6px;
+  font-size: 1rem;
+}
+button {
+  padding: 0.6rem 1.1rem;
+  border: 0;
+  border-radius: 6px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 1rem;
+  cursor: pointer;
+}
+button:hover { filter: brightness(1.1); }
+ul { list-style: none; padding: 0; margin: 0; }
+li {
+  padding: 0.7rem 0.9rem;
+  background: #fff;
+  border: 1px solid #e4e4e7;
+  border-radius: 6px;
+  margin-bottom: 0.4rem;
+}
+li.empty { color: #999; text-align: center; }
+.status { min-height: 1.2rem; font-size: 0.9rem; color: #666; }
+.status.error { color: #b91c1c; }

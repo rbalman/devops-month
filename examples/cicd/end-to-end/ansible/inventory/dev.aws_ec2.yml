@@ -1,0 +1,20 @@
+---
+# Dynamic inventory: discover this env's instances by tag. No static IPs, no SSH.
+# The host's "name" is its instance-id, which is what the SSM connection needs.
+plugin: amazon.aws.aws_ec2
+regions:
+  - us-east-1
+filters:
+  tag:Project: end-to-end
+  tag:Env: dev
+  instance-state-name: running
+hostnames:
+  - instance-id
+# Group by the Role tag → groups named exactly "app" and "db".
+keyed_groups:
+  - key: tags.Role
+    prefix: ""
+    separator: ""
+# Expose the private IP so the app role can point the backend at the db host.
+compose:
+  private_ip: private_ip_address

@@ -1,0 +1,41 @@
+name: Terraform
+
+on:
+  pull_request:
+    paths: ["terraform/**"]
+  push:
+    branches: [main]
+    paths: ["terraform/**"]
+
+permissions:
+  id-token: write # request the OIDC token
+  contents: read
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: terraform
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Authenticate to AWS (OIDC)
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: arn:aws:iam::CHANGEME:role/github-actions
+          aws-region: us-east-1
+
+      - uses: hashicorp/setup-terraform@v3
+
+      - run: terraform init -input=false
+      - run: terraform fmt -check
+      - run: terraform validate -no-color
+
+      - name: Plan (on PRs)
+        if: github.event_name == 'pull_request'
+        run: terraform plan -no-color -input=false
+
+      - name: Apply (on merge to main)
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: terraform apply -auto-approve -input=false

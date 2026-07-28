@@ -101,7 +101,7 @@ App code, infrastructure code, and configuration code **in one place, versioned 
 Provision the EC2 with Terraform, deploy the three containers with Ansible, and wire the git-driven pipeline that runs it all.
 
 !!! important "Reuse your backend + OIDC role"
-    State goes in the S3 backend (key `end-to-end/terraform.tfstate`); AWS auth uses the **OIDC role from Day 3**.
+    State goes in the S3 backend (key `end-to-end/terraform.tfstate`); AWS auth uses an **OIDC role for this repo**, set up the same way as in [Terraform in CI/CD](day-24.md).
 
 ### 1. The infrastructure — Terraform
 

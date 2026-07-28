@@ -1,0 +1,4 @@
+---
+# The backend connects to Postgres on the dedicated db instance, over the private
+# network. Its IP comes straight from the dynamic inventory (the `db` group).
+db_host: "{{ hostvars[groups['db'][0]].private_ip }}"

@@ -1,0 +1,24 @@
+---
+- name: Create the app directory
+  ansible.builtin.file:
+    path: /opt/app
+    state: directory
+    mode: "0755"
+
+- name: Copy the Postgres init script
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../db/init.sql"
+    dest: /opt/app/init.sql
+    mode: "0644"
+
+- name: Template the database compose file
+  ansible.builtin.template:
+    src: docker-compose.yml.j2
+    dest: /opt/app/docker-compose.yml
+    mode: "0644"
+
+- name: Start Postgres
+  community.docker.docker_compose_v2:
+    project_src: /opt/app
+    pull: always
+    state: present

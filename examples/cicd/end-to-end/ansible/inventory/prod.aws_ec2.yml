@@ -1,0 +1,17 @@
+---
+# Same as dev.aws_ec2.yml but scoped to the prod instances.
+plugin: amazon.aws.aws_ec2
+regions:
+  - us-east-1
+filters:
+  tag:Project: end-to-end
+  tag:Env: prod
+  instance-state-name: running
+hostnames:
+  - instance-id
+keyed_groups:
+  - key: tags.Role
+    prefix: ""
+    separator: ""
+compose:
+  private_ip: private_ip_address

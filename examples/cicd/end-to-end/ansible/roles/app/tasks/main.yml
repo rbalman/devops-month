@@ -1,0 +1,27 @@
+---
+- name: Log in to ECR (uses the instance profile's pull permissions)
+  ansible.builtin.shell: >
+    set -o pipefail;
+    /snap/bin/aws ecr get-login-password --region {{ aws_region }}
+    | docker login --username AWS --password-stdin {{ ecr_registry }}
+  args:
+    executable: /bin/bash
+  changed_when: false
+
+- name: Create the app directory
+  ansible.builtin.file:
+    path: /opt/app
+    state: directory
+    mode: "0755"
+
+- name: Template the app compose file
+  ansible.builtin.template:
+    src: docker-compose.yml.j2
+    dest: /opt/app/docker-compose.yml
+    mode: "0644"
+
+- name: Deploy the app containers (frontend + backend)
+  community.docker.docker_compose_v2:
+    project_src: /opt/app
+    pull: always
+    state: present

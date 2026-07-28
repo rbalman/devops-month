@@ -19,7 +19,7 @@
 
 - **Week 3 complete** — Ansible basics, inventory, roles (Days 15–16)
 - An **EC2 instance** you can SSH into (from Day 2/3, or launch a fresh `t3.micro`) with its **private key**
-- Day 1's `sample-app` repo
+- A **new, dedicated GitHub repo** for this lab (e.g. `ansible-ci`) — this day doesn't reuse the sample-app repo
 
 ---
 
@@ -77,13 +77,18 @@ Because playbooks are **idempotent** (Week 3), re-running one is safe — the se
 
 Run a small playbook against an EC2 host from GitHub Actions: lint + syntax + dry-run on PRs, apply on merge.
 
+!!! note "Runnable version in the repo"
+    The complete project is at [`examples/cicd/ansible-ci`](https://github.com/rbalman/devops-month/tree/main/examples/cicd/ansible-ci) — copy it into a fresh `ansible-ci` repo, or build it from the snippets below.
+
 ### 1. The playbook
 
-In your repo, make an `ansible/` folder. **`ansible/playbook.yml`** — install nginx and drop a page (deliberately simple):
+This lab lives in its **own repo** — create an empty `ansible-ci` and clone it (don't reuse the sample-app repo). In it, make an `ansible/` folder. **`ansible/playbook.yml`** — install nginx and drop a page (deliberately simple):
 
 ```yaml
-- hosts: web
+- name: Configure the web server
+  hosts: web
   become: true
+
   tasks:
     - name: Install nginx
       ansible.builtin.apt:
@@ -96,10 +101,10 @@ In your repo, make an `ansible/` folder. **`ansible/playbook.yml`** — install 
         content: "Configured by GitHub Actions + Ansible\n"
         dest: /var/www/html/index.html
         mode: "0644"
-      notify: reload nginx
+      notify: Reload nginx
 
   handlers:
-    - name: reload nginx
+    - name: Reload nginx
       ansible.builtin.service:
         name: nginx
         state: reloaded
@@ -123,7 +128,7 @@ Repo → **Settings → Secrets and variables → Actions**:
 |---|---|
 | `SSH_PRIVATE_KEY` | full contents of your `.pem` |
 
-(No Vault secret needed for this simple playbook — you'll add one on Day 5.)
+(No Vault secret needed for this simple playbook — the assignment adds one.)
 
 ### 3. The workflow
 
@@ -206,16 +211,49 @@ Re-run the apply (re-run the workflow, or push an empty change). The playbook re
 
 ## Assignment
 
-Harden the Ansible pipeline.
+Write a playbook — **run by the Ansible pipeline** — that uses a **community Galaxy role to install Docker**, then runs an **nginx container** serving a custom page. Same task as by hand; the one change is **the pipeline runs it** (lint + syntax + `--check` on PRs, apply on merge).
 
-**Part 1 — Vaulted secret + password from CI.** Add a **vaulted** variable (e.g. a message string or a fake token) with `ansible-vault`, use it in the playbook, and pass the **vault password from a GitHub secret** via `--vault-password-file`. Confirm the workflow decrypts and applies it without the password ever appearing in the repo or logs.
+**Steps:**
 
-**Part 2 — Fail the PR on drift.** Make the **`--check`** step run on PRs with `--diff` and treat *any* would-be change as a signal: using `--check`, a PR that expects "no changes" should come back clean. Manually change the file on the server (`echo hacked > /var/www/html/index.html`), then run a check-mode job and show it **reports the drift** it would revert.
+1. Install [`geerlingguy.docker`](https://galaxy.ansible.com/ui/standalone/roles/geerlingguy/docker/documentation/) — declare it in a `requirements.yml`; the **workflow** installs it with `ansible-galaxy install -r requirements.yml` before running the play.
+2. Write a playbook targeting the `web` group that:
+   - applies the `geerlingguy.docker` role to install Docker,
+   - deploys `index.html` **from a Jinja2 template** (`index.html.j2`) that renders the message *plus the host's uptime at deploy time* — e.g.
+     **`Hello World from Ansible!!!. Last Uptime: up 13 hours, 50 minutes.`** — where the uptime is read from the target host during the run (not hard-coded),
+   - runs an **nginx container**, mapping container port 80 to host **port 8080**, with your page mounted as the site root.
+3. Point `inventory.ini` at an **EC2 you can reach** (public IP; its security group allows SSH from the runner and 8080 from you), and add its key as the `SSH_PRIVATE_KEY` secret. The pipeline runs lint → syntax → `--check --diff` on the PR, then applies on merge. **Verify:** `curl http://<ec2-public-ip>:8080` returns your `Hello World from Ansible!!!. Last Uptime: …` page with the real uptime. **Re-run** the workflow and confirm the uptime reflects the host each deploy.
 
-**Submit:** your `ansible.yml`, the vaulted file (encrypted — safe to commit), a screenshot of the dry-run `--diff` on a PR, and the check-mode run that detected your manual drift.
+**Hint — the uptime:** capture it from the target host with a task, then reference the registered variable in `index.html.j2`:
 
-!!! danger "Don't leave the box running"
-    If this EC2 is only for the lab, **stop or terminate it** when done.
+```yaml
+- name: Read host uptime
+  ansible.builtin.command: uptime -p      # → "up 13 hours, 50 minutes"
+  register: host_uptime
+  changed_when: false
+```
+
+```jinja
+Hello World from Ansible!!!. Last Uptime: {{ host_uptime.stdout }}.
+```
+
+**Hint — the container:** once Docker is installed, run it with the `community.docker.docker_container` module:
+
+```yaml
+- name: Run nginx in a container
+  community.docker.docker_container:
+    name: hello-nginx
+    image: nginx:latest
+    state: started
+    ports:
+      - "8080:80"
+    volumes:
+      - "/opt/site:/usr/share/nginx/html:ro"
+```
+
+**Submit:** your `requirements.yml`, `playbook.yml`, `index.html.j2`, the workflow, the PR `--check --diff`, and the `curl` output.
+
+!!! danger "Clean up"
+    Stop or terminate the EC2 when you're done.
 
 ---
 

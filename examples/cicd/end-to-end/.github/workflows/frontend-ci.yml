@@ -1,0 +1,23 @@
+name: Frontend CI
+
+# Only runs when frontend code changes.
+on:
+  pull_request:
+    paths: ["frontend/**"]
+  push:
+    branches-ignore: [main]
+    paths: ["frontend/**"]
+
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v7
+      # Build the image (validates the Dockerfile + that the static files copy in)…
+      - run: docker build -t frontend:ci .
+      # …and check the nginx config is valid. No push here — that's cd.yml on main.
+      - name: Validate nginx config
+        run: docker run --rm frontend:ci nginx -t

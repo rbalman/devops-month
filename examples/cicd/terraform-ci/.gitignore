@@ -1,0 +1,6 @@
+# Ignore local provider binaries and state — but NOT .terraform.lock.hcl,
+# which pins provider versions and SHOULD be committed.
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan

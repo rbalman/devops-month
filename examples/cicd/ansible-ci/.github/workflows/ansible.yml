@@ -1,0 +1,48 @@
+name: Ansible
+
+on:
+  pull_request:
+    paths: ["ansible/**"]
+  push:
+    branches: [main]
+    paths: ["ansible/**"]
+
+jobs:
+  ansible:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ansible
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install Ansible + lint
+        run: pip install ansible ansible-lint
+
+      - name: Lint
+        run: ansible-lint playbook.yml
+
+      - name: Syntax check
+        run: ansible-playbook --syntax-check -i inventory.ini playbook.yml
+
+      - name: Set up SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+
+      - name: Dry run (on PRs)
+        if: github.event_name == 'pull_request'
+        run: ansible-playbook -i inventory.ini playbook.yml --check --diff
+        env:
+          ANSIBLE_HOST_KEY_CHECKING: "False"
+
+      - name: Apply (on merge to main)
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: ansible-playbook -i inventory.ini playbook.yml
+        env:
+          ANSIBLE_HOST_KEY_CHECKING: "False"

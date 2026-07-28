@@ -1,0 +1,43 @@
+# LOCAL DEVELOPMENT stack — the whole app on your laptop.
+#
+#   cp .env.example .env
+#   docker compose up --build
+#   open http://localhost:8080
+#
+# This mirrors what runs on the EC2 instances (frontend + backend + postgres on
+# one network), but here we build the images locally instead of pulling from ECR,
+# and the DB lives beside the app instead of on a dedicated instance.
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-appuser}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-appsecret}
+      POSTGRES_DB: ${POSTGRES_DB:-appdb}
+    volumes:
+      - dbdata:/var/lib/postgresql/data
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-appuser} -d ${POSTGRES_DB:-appdb}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  backend:
+    build: ./backend
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-appuser}:${POSTGRES_PASSWORD:-appsecret}@db:5432/${POSTGRES_DB:-appdb}
+      PORT: "3000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
+
+volumes:
+  dbdata:

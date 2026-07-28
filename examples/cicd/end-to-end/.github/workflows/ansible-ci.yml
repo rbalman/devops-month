@@ -1,0 +1,29 @@
+name: Ansible CI
+
+# Only runs when Ansible changes. Lint + syntax-check against a static stub so no
+# AWS credentials are needed. The real deploy is in cd.yml.
+on:
+  pull_request:
+    paths: ["ansible/**"]
+  push:
+    branches-ignore: [main]
+    paths: ["ansible/**"]
+
+jobs:
+  ansible:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ansible
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: pip install ansible ansible-lint
+      - run: ansible-galaxy collection install -r requirements.yml
+      - name: Lint + syntax-check
+        run: |
+          printf '[app]\nappstub\n\n[db]\ndbstub\n' > /tmp/stub.ini
+          ansible-lint --exclude inventory site.yml roles/
+          ansible-playbook --syntax-check -i /tmp/stub.ini -e ansible_connection=local site.yml

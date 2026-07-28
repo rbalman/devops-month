@@ -1,0 +1,20 @@
+---
+# Order matters: base tooling everywhere, then the database, then the app that
+# depends on it.
+- name: Base setup (Docker, AWS CLI)
+  hosts: all
+  become: true
+  roles:
+    - common
+
+- name: Database tier
+  hosts: db
+  become: true
+  roles:
+    - database
+
+- name: Application tier
+  hosts: app
+  become: true
+  roles:
+    - app
