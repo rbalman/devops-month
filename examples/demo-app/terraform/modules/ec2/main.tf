@@ -89,7 +89,7 @@ resource "aws_instance" "this" {
   count                       = var.instance_count
   ami                         = var.ami_id
   instance_type               = var.instance_type
-  subnet_id                   = var.subnet_id
+  subnet_id                   = element(var.subnet_ids, count.index) # round-robin across AZs
   vpc_security_group_ids      = [aws_security_group.this.id]
   iam_instance_profile        = aws_iam_instance_profile.this[count.index].name
   key_name                    = var.key_name

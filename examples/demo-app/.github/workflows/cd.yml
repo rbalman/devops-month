@@ -1,8 +1,7 @@
 name: CD
 
-# One parameterized deploy job — no per-env duplication. Two ways in:
-#   • merge to main   → auto-deploys DEV (image tag = commit SHA)
-#   • Run workflow    → pick the environment (dev/prod) and an optional image tag
+# One parameterized deploy job — no per-env duplication. Triggered manually:
+#   • Run workflow → pick the environment (dev/prod) and an optional image tag
 #
 # Kept as ONE ordered pipeline on purpose: the deploy order matters (infra must
 # exist before images are pushed, images before Ansible deploys them). Choosing
@@ -21,15 +20,16 @@ on:
         type: string
         required: false
         default: ""
-  push:
-    branches: [main]
-    paths:
-      - "backend/**"
-      - "frontend/**"
-      - "db/**"
-      - "terraform/**"
-      - "ansible/**"
-      - ".github/workflows/cd.yml"
+  # Auto-deploy on merge is disabled for now — run this workflow manually instead.
+  # push:
+  #   branches: [main]
+  #   paths:
+  #     - "backend/**"
+  #     - "frontend/**"
+  #     - "db/**"
+  #     - "terraform/**"
+  #     - "ansible/**"
+  #     - ".github/workflows/cd.yml"
 
 permissions:
   id-token: write # OIDC → AWS

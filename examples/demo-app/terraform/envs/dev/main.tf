@@ -91,7 +91,7 @@ module "app" {
   instance_count      = 2
   ami_id              = data.aws_ami.ubuntu.id
   instance_type       = var.app_instance_type
-  subnet_id           = module.vpc.public_subnet_ids[0]
+  subnet_ids          = module.vpc.public_subnet_ids # spread across both AZs
   vpc_id              = module.vpc.vpc_id
   key_name            = var.key_name
   ecr_repository_arns = module.ecr.repository_arns
@@ -106,12 +106,12 @@ module "app" {
 }
 
 module "db" {
-  source              = "../../modules/ec2"
-  name                = "${local.name}-db"
-  instance_count      = 1
+  source = "../../modules/ec2"
+  name   = "${local.name}-db"
+  # instance_count defaults to 1
   ami_id              = data.aws_ami.ubuntu.id
   instance_type       = var.db_instance_type
-  subnet_id           = module.vpc.public_subnet_ids[0]
+  subnet_ids          = [module.vpc.public_subnet_ids[0]] # single AZ (one instance)
   vpc_id              = module.vpc.vpc_id
   key_name            = var.key_name
   ecr_repository_arns = module.ecr.repository_arns

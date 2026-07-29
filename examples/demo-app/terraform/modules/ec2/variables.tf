@@ -4,7 +4,7 @@ variable "name" {
 }
 
 variable "instance_count" {
-  description = "How many instances to launch."
+  description = "How many instances to launch (each gets its own IAM role/profile). Defaults to 1; only set it when you need more."
   type        = number
   default     = 1
 }
@@ -22,9 +22,9 @@ variable "vpc_id" {
   type        = string
 }
 
-variable "subnet_id" {
-  description = "Public subnet the instances launch into (single-AZ compute)."
-  type        = string
+variable "subnet_ids" {
+  description = "Public subnets to spread instances across, round-robin by index (pass one subnet to pin to a single AZ)."
+  type        = list(string)
 }
 
 variable "key_name" {
