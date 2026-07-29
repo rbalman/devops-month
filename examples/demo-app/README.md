@@ -78,11 +78,14 @@ the course repo and wire it to yours:
 ```bash
 git clone https://github.com/rbalman/devops-month.git
 cp -R devops-month/examples/demo-app demo-app && cd demo-app
-git init -b main && git add . && git commit -m "demo-app"
-git remote add origin https://github.com/<you>/demo-app.git
+# then initialize it as a git repo and set 'origin' to your new GitHub repo
 ```
 
-**2 · Add the CI/CD config** — via the GitHub UI (*Settings → Secrets and variables → Actions*) or the CLI:
+**2 · Set up GitHub for the pipeline** — all in your new repo's **Settings**:
+
+- **Environments** → create one named **`prod`** with a **required reviewer**. This is the prod
+  approval gate; `dev` needs no environment.
+- **Secrets and variables → Actions** → add these **repository-level** entries (shared by dev & prod):
 
 ```bash
 gh variable set AWS_REGION   --body "us-east-1"
@@ -92,27 +95,22 @@ gh secret   set DB_USERNAME   --body "appuser"
 gh secret   set DB_PASSWORD   --body "<pick-a-strong-password>"
 ```
 
-> 🛡️ Also create a **`prod` Environment** (*Settings → Environments*) with a **required reviewer** —
-> that's what makes prod deploys wait for approval.
-
-**3 · Point Terraform at your account** — edit `terraform/envs/<env>/`:
+**3 · Point Terraform at your account, then push.** Edit `terraform/envs/<env>/`:
 
 - `backend.tf` → your S3 state `bucket`
 - `terraform.tfvars` → `hosted_zone_name`, `app_domain`, `key_name`
 
-**4 · Deploy with GitHub Actions** — no local `terraform`/`docker`/`ansible` needed. Push your
-config, then run the **CD** workflow manually:
+Commit and push so your config (and the workflows) land in the repo:
 
 ```bash
-git commit -am "configure demo-app" && git push -u origin main
-gh workflow run cd.yml -f environment=dev            # or: Actions → CD → Run workflow
+git add -A && git commit -m "configure demo-app" && git push -u origin main
 ```
 
-CD runs the whole pipeline: `terraform apply` provisions the infra (VPC, ALB, ACM, ECR, SSM, EC2) →
-the **frontend + backend images are built and pushed to ECR** → **Ansible** deploys the containers
-over SSH. Follow it under the repo's **Actions** tab.
+**4 · Deploy — just run the workflow.** In your repo's **Actions** tab → **CD** → **Run workflow**,
+pick **`dev`**, and hit the green button. That's the whole deploy — CD provisions the infra, builds &
+pushes the images to ECR, and deploys the containers with Ansible. Watch it tick through in **Actions**.
 
-> 🚀 **Ship to prod:** same workflow with `environment=prod` — it waits for your reviewer to approve.
+> 🚀 **Ship to prod** the same way — **Run workflow → `prod`** — it pauses for a reviewer's approval first.
 
 **5 · Open `https://<app_domain>`** 🎉 — the frontend loads and `/api/items` reads/writes Postgres.
 
