@@ -54,7 +54,7 @@ Each session is **1–1.5 hours** of focused work: ~20 min theory + ~50 min hand
 | [Day 2](week-04/day-23.md) | GitHub Actions II — Build, Push & Deploy | Env vars & config variables vs secrets, expressions & functions, step/job outputs, conditions (`if:`), connecting to AWS via OIDC & the AWS CLI; build an image, push to a registry, deploy |
 | [Day 3](week-04/day-24.md) | Terraform in CI/CD | Why IaC belongs in a pipeline, OIDC keyless AWS auth, `fmt`/`validate`/`plan`/`apply` as stages, plan-on-PR + apply-on-merge; small standalone example |
 | [Day 4](week-04/day-25.md) | Ansible in CI/CD | `ansible-lint`/`--syntax-check`/`--check` gates, SSH key + Vault password from secrets, apply on merge, idempotency as a safety net; small standalone example |
-| [Day 5](week-04/day-26.md) | GitOps & the End-to-End Project | GitOps principles (declarative, versioned, reconciled), push vs pull; the capstone project — one repo with frontend + backend + Postgres, Terraform-provisioned EC2, Ansible deploying all three as containers, git-driven |
+| [Day 5](week-04/day-26.md) | Deploy a Full-Stack AWS Project | The capstone — a three-tier app (frontend + backend + Postgres) on production-shaped AWS (VPC, ALB/HTTPS, ECR, EC2), provisioned with Terraform, deployed with Ansible, driven by GitHub Actions; clone the demo-app and ship it end to end |
 | [Day 6](week-04/day-27.md) | Monitoring & Alerting | Prometheus (metrics), Loki (logs), Grafana (dashboards + log queries + alerting → Discord) via Alloy; watch the end-to-end app |
 | [Day 7](week-04/day-28.md) | Security Best Practices | DevSecOps / shift-left; secrets, least-privilege IAM, tight security groups, image + IaC scanning (Trivy), pin actions to SHA, Dependabot; course wrap-up & what's next |
 

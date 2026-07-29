@@ -5,7 +5,13 @@ services:
   backend:
     image: {{ backend_image }}
     environment:
-      DATABASE_URL: "postgres://{{ db_username }}:{{ db_password }}@{{ db_host }}:5432/{{ db_name }}"
+      # Discrete PG* vars, not a DATABASE_URL — so special characters in the
+      # password (#, @, :, /) don't need URL-encoding and can't break parsing.
+      PGHOST: "{{ db_host }}"
+      PGPORT: "5432"
+      PGUSER: "{{ db_username }}"
+      PGPASSWORD: "{{ db_password }}"
+      PGDATABASE: "{{ db_name }}"
       PORT: "3000"
     restart: always
 

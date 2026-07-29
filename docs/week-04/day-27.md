@@ -3,7 +3,7 @@
 > A live, self-deploying app is great — but if it falls over at 3 a.m., **you'd find out from an angry user.** The discipline of observability is knowing what your system is doing *before* anyone else does. This stands up the classic open-source stack — **Prometheus** for metrics, **Loki** for logs, **Grafana** as the single pane of glass — and wires an **alert to Discord** so a problem pages you, not your users. The moving parts are kept few on purpose: three stores, one UI, one notification channel.
 
 !!! info "Where this fits"
-    This assumes the end-to-end app (frontend + backend + Postgres) from [GitOps & the End-to-End Project](day-26.md) is running — this is how you watch it. Securing it is covered in [Security Best Practices](day-28.md).
+    This assumes the end-to-end app (frontend + backend + Postgres) from [Deploy a Full-Stack AWS Project](day-26.md) is running — this is how you watch it. Securing it is covered in [Security Best Practices](day-28.md).
 
 ## Learning Objectives
 

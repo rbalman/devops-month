@@ -3,7 +3,7 @@
 > Running Terraform from a pipeline has an equivalent for configuration: **Ansible**. Configuration drifts just like infrastructure — someone SSHes in, tweaks nginx, forgets. Running your playbooks from CI means every config change is **reviewed, linted, dry-run, and applied by a machine** — never by hand on a box nobody else knows about. The example is kept tiny: one playbook against one server, so the focus stays on the *automation pattern*.
 
 !!! info "Where this fits"
-    This applies the CI/CD pattern to **Ansible**, completing the toolkit — lint/test/build, image publish, IaC, and config management, all in GitHub Actions. [GitOps & the End-to-End Project](day-26.md) combines them into a git-driven, end-to-end deploy.
+    This applies the CI/CD pattern to **Ansible**, completing the toolkit — lint/test/build, image publish, IaC, and config management, all in GitHub Actions. [Deploy a Full-Stack AWS Project](day-26.md) combines them into a full end-to-end deploy.
 
 ## Learning Objectives
 
@@ -196,7 +196,7 @@ jobs:
 Re-run the apply (re-run the workflow, or push an empty change). The playbook reports **ok**, not **changed** — nothing to do. That's why running config on every merge is safe.
 
 !!! success "What you just built"
-    A reviewed, linted, dry-run-then-applied Ansible pipeline. You've now automated all four building blocks — **test, image, Terraform, Ansible**. Day 5 assembles them into the end-to-end project under GitOps.
+    A reviewed, linted, dry-run-then-applied Ansible pipeline. You've now automated all four building blocks — **test, image, Terraform, Ansible**. Day 5 assembles them into the end-to-end project.
 
 ---
 

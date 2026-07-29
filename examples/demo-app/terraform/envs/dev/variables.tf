@@ -44,20 +44,3 @@ variable "hosted_zone_name" {
   description = "Existing Route53 hosted zone that contains app_domain (e.g. example.com)."
   type        = string
 }
-
-variable "db_username" {
-  description = "Postgres role name — from a GitHub secret via TF_VAR_db_username."
-  type        = string
-  sensitive   = true
-}
-
-variable "db_password" {
-  description = "Postgres password — from a GitHub secret via TF_VAR_db_password."
-  type        = string
-  sensitive   = true
-}
-
-variable "db_name" {
-  type    = string
-  default = "appdb"
-}

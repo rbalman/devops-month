@@ -3,7 +3,7 @@
 > Running `terraform apply` from your laptop (Week 3) is fine to learn on, but it doesn't scale: whose laptop is the source of truth? Who reviewed the change? What if two people apply at once? Moving Terraform **into the pipeline** fixes all of that — the same `fmt → validate → plan → apply` flow, but run by GitHub Actions on a clean machine, reviewed like code, and authenticated to AWS with **no stored keys** via OIDC. The example is kept deliberately small: one tiny Terraform config, so the focus is the *automation*, not the infrastructure.
 
 !!! info "Where this fits"
-    This applies the CI/CD pattern to **Terraform**. Running **Ansible** from CI is covered in [Ansible in CI/CD](day-25.md), and [GitOps & the End-to-End Project](day-26.md) combines them to provision and deploy the whole app.
+    This applies the CI/CD pattern to **Terraform**. Running **Ansible** from CI is covered in [Ansible in CI/CD](day-25.md), and [Deploy a Full-Stack AWS Project](day-26.md) combines them to provision and deploy the whole app.
 
 ## Learning Objectives
 
@@ -143,7 +143,7 @@ You just changed AWS infrastructure **without touching a terminal or storing a k
 Add a **manual destroy** you can trigger from the UI — a `workflow_dispatch` workflow that runs `terraform destroy -auto-approve` — or just run it once locally to remove the instance. **An EC2 instance bills by the hour, so don't leave it running.**
 
 !!! success "What you just built"
-    A keyless, reviewable Terraform pipeline: PRs show the plan, merges apply it. The same pattern for **Ansible** is in [Ansible in CI/CD](day-25.md); [GitOps & the End-to-End Project](day-26.md) combines both.
+    A keyless, reviewable Terraform pipeline: PRs show the plan, merges apply it. The same pattern for **Ansible** is in [Ansible in CI/CD](day-25.md); [Deploy a Full-Stack AWS Project](day-26.md) combines both.
 
 ---
 

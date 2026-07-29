@@ -1,6 +1,6 @@
 # Week 4 — CI/CD & Monitoring
 
-The final week — **Ship It, Watch It, Secure It**. You'll take an **end-to-end project** (frontend · backend · Postgres) all the way to a **self-deploying, monitored, secured** system: automate the build and release with **GitHub Actions**, provision it with **Terraform** and configure it with **Ansible**, tie it together under **GitOps**, instrument it with **Prometheus, Loki, and Grafana** (alerting to Discord), and harden it with **security best practices**.
+The final week — **Ship It, Watch It, Secure It**. You'll take an **end-to-end project** (frontend · backend · Postgres) all the way to a **self-deploying, monitored, secured** system: automate the build and release with **GitHub Actions**, provision it with **Terraform** and configure it with **Ansible**, instrument it with **Prometheus, Loki, and Grafana** (alerting to Discord), and harden it with **security best practices**.
 
 **CI/CD with GitHub Actions — one skill per day:**
 
@@ -11,7 +11,7 @@ The final week — **Ship It, Watch It, Secure It**. You'll take an **end-to-end
 
 **Bring it together — the end-to-end project (the capstone):**
 
-- [Day 5 · GitOps & the End-to-End Project](day-26.md) — GitOps principles, then the whole app in one repo: frontend + backend + Postgres, a Terraform-provisioned EC2, and Ansible deploying all three as containers — driven by git.
+- [Day 5 · Deploy a Full-Stack AWS Project](day-26.md) — the capstone: a three-tier app (frontend + backend + Postgres) on production-shaped AWS (VPC, ALB/HTTPS, ECR, EC2), provisioned with Terraform, deployed with Ansible, driven by GitHub Actions.
 
 **Operate it:**
 

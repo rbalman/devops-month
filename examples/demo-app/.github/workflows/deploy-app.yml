@@ -60,11 +60,18 @@ jobs:
           install -m 600 /dev/null key.pem
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > key.pem
 
+      # Everything Ansible needs is passed via the environment — group_vars/all.yml
+      # reads each with lookup('env', ...). Secrets are mapped in here; the rest
+      # already live in the job env / were exported above.
       - name: Ansible deploy
         working-directory: ansible
+        env:
+          ENV_NAME: ${{ env.TARGET_ENV }}
+          AWS_REGION: ${{ env.AWS_REGION }}
+          ECR_REGISTRY: ${{ env.ECR_REGISTRY }}
+          IMAGE_TAG: ${{ env.IMAGE_TAG }}
+          DB_USERNAME: ${{ secrets.DB_USERNAME }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
         run: |
-          ansible-playbook -i "inventory/${TARGET_ENV}.aws_ec2.yml" site.yml \
-            --private-key ../key.pem \
-            -e env_name="$TARGET_ENV" \
-            -e ecr_registry="$ECR_REGISTRY" \
-            -e image_tag="$IMAGE_TAG"
+          ansible-playbook -i "inventory/${ENV_NAME}.aws_ec2.yml" site.yml \
+            --private-key ../key.pem

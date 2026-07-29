@@ -196,7 +196,7 @@ Look back at what you built in a month:
 - **Week 1** — the Linux and shell fluency everything rests on.
 - **Week 2** — networking, TLS, and containers: how services talk and ship.
 - **Week 3** — Ansible, AWS, and Terraform: infrastructure and config as code.
-- **Week 4** — CI/CD, an end-to-end project, GitOps, observability, and security: the whole delivery loop.
+- **Week 4** — CI/CD, an end-to-end project, observability, and security: the whole delivery loop.
 
 You can now take an app from source to a **monitored, secured, self-deploying system on AWS** — and explain every hop. That's a genuine entry-level DevOps skill set.
 

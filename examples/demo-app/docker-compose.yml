@@ -26,7 +26,12 @@ services:
   backend:
     build: ./backend
     environment:
-      DATABASE_URL: postgres://${POSTGRES_USER:-appuser}:${POSTGRES_PASSWORD:-appsecret}@db:5432/${POSTGRES_DB:-appdb}
+      # Discrete PG* vars (not a DATABASE_URL) so special chars in the password
+      # never need URL-encoding.
+      PGHOST: db
+      PGUSER: ${POSTGRES_USER:-appuser}
+      PGPASSWORD: ${POSTGRES_PASSWORD:-appsecret}
+      PGDATABASE: ${POSTGRES_DB:-appdb}
       PORT: "3000"
     depends_on:
       db:

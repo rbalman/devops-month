@@ -22,7 +22,7 @@ driven by **GitHub Actions** with keyless **OIDC**.
                    ▼ :5432
              db-instance                     ← postgres:16 (public-a; shared by both app nodes)
 
-  Images: ECR · DB creds: SSM Parameter Store · Deploy: SSH · public instances, no NAT
+  Images: ECR · DB creds: GitHub secrets → Ansible · Deploy: SSH · public instances, no NAT
 ```
 
 - **2 app instances** behind the ALB, **one per AZ** (public-a / public-b), each running
@@ -111,7 +111,7 @@ Now deploy in **three ordered stages** — for each, go to the **Actions** tab, 
 workflow, and click **Run workflow → `dev`**:
 
 **4 · Provision the infra** — run the **Deploy Infra** workflow. It stands up the VPC, ALB, ACM,
-**ECR**, SSM, and EC2. Must come first — the next stage pushes images into the ECR it creates.
+**ECR**, and EC2. Must come first — the next stage pushes images into the ECR it creates.
 
 **5 · Build & push the images** — run the **Backend** and **Frontend** workflows; their `build-push`
 job publishes the images to ECR.

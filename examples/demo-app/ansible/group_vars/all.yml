@@ -1,7 +1,9 @@
 ---
-# Which environment we're deploying. CD overrides with -e env_name=prod.
-env_name: dev
-aws_region: us-east-1
+# Every deploy input comes from the ENVIRONMENT — the deploy-app.yml workflow sets
+# these (from repo variables + secrets). The defaults let you run locally by
+# exporting the same variables. One consistent mechanism, no mixed `-e` flags.
+env_name: "{{ lookup('env', 'ENV_NAME') | default('dev', true) }}"
+aws_region: "{{ lookup('env', 'AWS_REGION') | default('us-east-1', true) }}"
 
 # --- Reach the instances over SSH (they have public IPs) --------------------
 # The private key is supplied by the deploy pipeline (--private-key); host key
@@ -9,14 +11,13 @@ aws_region: us-east-1
 ansible_user: ubuntu
 ansible_python_interpreter: /usr/bin/python3
 
-# --- Images to deploy. CD passes real values via -e (ecr_registry, image_tag) -
-image_tag: latest
-ecr_registry: "CHANGEME.dkr.ecr.us-east-1.amazonaws.com"
+# --- Images to deploy -------------------------------------------------------
+image_tag: "{{ lookup('env', 'IMAGE_TAG') | default('latest', true) }}"
+ecr_registry: "{{ lookup('env', 'ECR_REGISTRY') }}"
 backend_image: "{{ ecr_registry }}/demo-app-{{ env_name }}-backend:{{ image_tag }}"
 frontend_image: "{{ ecr_registry }}/demo-app-{{ env_name }}-frontend:{{ image_tag }}"
 
-# --- DB credentials, read from SSM Parameter Store (on the controller) --------
-# These evaluate lazily where referenced; the runner's OIDC creds read them.
-db_username: "{{ lookup('amazon.aws.aws_ssm', '/demo-app/' ~ env_name ~ '/db/username', region=aws_region) }}"
-db_password: "{{ lookup('amazon.aws.aws_ssm', '/demo-app/' ~ env_name ~ '/db/password', region=aws_region, decrypt=True) }}"
-db_name: "{{ lookup('amazon.aws.aws_ssm', '/demo-app/' ~ env_name ~ '/db/name', region=aws_region) }}"
+# --- DB credentials — straight from GitHub secrets via the environment -------
+db_name: appdb
+db_username: "{{ lookup('env', 'DB_USERNAME') }}"
+db_password: "{{ lookup('env', 'DB_PASSWORD') }}"

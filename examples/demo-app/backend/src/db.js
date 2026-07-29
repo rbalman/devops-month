@@ -4,8 +4,8 @@
 //   1. DATABASE_URL      — postgres://user:pass@host:5432/db  (used locally + in compose)
 //   2. discrete PG* vars — PGHOST/PGUSER/PGPASSWORD/PGDATABASE/PGPORT
 //
-// On the EC2 app instances these values come from SSM Parameter Store (rendered
-// into the container's environment by Ansible) — never hard-coded, never in git.
+// On the EC2 app instances these values come from GitHub secrets, rendered into
+// the container's environment by Ansible — never hard-coded, never in git.
 const { Pool } = require("pg");
 
 function buildPool() {

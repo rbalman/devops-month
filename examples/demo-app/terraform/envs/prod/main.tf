@@ -61,29 +61,9 @@ module "alb" {
   tags              = local.tags
 }
 
-# --- DB credentials: supplied via GitHub secrets (TF_VAR_*), stored in SSM ---
-resource "aws_ssm_parameter" "db_username" {
-  name  = "/demo-app/${var.environment}/db/username"
-  type  = "String"
-  value = var.db_username
-  tags  = local.tags
-}
-
-resource "aws_ssm_parameter" "db_password" {
-  name  = "/demo-app/${var.environment}/db/password"
-  type  = "SecureString"
-  value = var.db_password
-  tags  = local.tags
-}
-
-resource "aws_ssm_parameter" "db_name" {
-  name  = "/demo-app/${var.environment}/db/name"
-  type  = "String"
-  value = var.db_name
-  tags  = local.tags
-}
-
 # --- Compute: 2 app instances + 1 db instance, all in public[0] ------------
+# DB credentials are NOT handled here — they come from GitHub secrets straight
+# to Ansible at deploy time (see ansible/group_vars/all.yml).
 # Each ec2 module owns its instances' security group + per-instance IAM roles.
 module "app" {
   source           = "../../modules/ec2"
