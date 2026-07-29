@@ -1,0 +1,71 @@
+name: Backend
+
+# Two responsibilities in one file, split by trigger:
+#   • ci         — lint/test/build on every PR touching backend/** (never pushes)
+#   • build-push — build the image and push it to ECR (keyless, via OIDC) when a
+#                  backend change is merged to main, or on manual dispatch
+on:
+  pull_request:
+    paths: ["backend/**"]
+  push:
+    branches: [main]
+    paths: ["backend/**"]
+  workflow_dispatch:
+
+permissions:
+  id-token: write # OIDC → AWS (build-push)
+  contents: read
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION }}
+  ROLE_ARN: ${{ vars.AWS_ROLE_ARN }}
+  ECR_REPOSITORY: demo-app-dev-backend # the repo Terraform created
+
+jobs:
+  ci:
+    # Validation only — runs on PRs, never pushes an image.
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - run: docker build -t backend:ci .
+
+  build-push:
+    # Ship the image: only on merge to main (backend/** changed) or manual run.
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Authenticate to AWS (OIDC)
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ env.ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Log in to Amazon ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push the image
+        env:
+          REGISTRY: ${{ steps.ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -t "$REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" -t "$REGISTRY/$ECR_REPOSITORY:latest" .
+          docker push "$REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+          docker push "$REGISTRY/$ECR_REPOSITORY:latest"

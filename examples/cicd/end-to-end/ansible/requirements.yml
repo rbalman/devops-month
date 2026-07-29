@@ -1,7 +1,0 @@
----
-# Install with: ansible-galaxy collection install -r requirements.yml
-collections:
-  - name: amazon.aws # aws_ec2 inventory + aws_ssm connection/lookup
-    version: ">=9.0.0"
-  - name: community.docker # docker_compose_v2
-    version: ">=4.0.0"

@@ -1,0 +1,23 @@
+{
+  "name": "demo-app-backend",
+  "version": "1.0.0",
+  "description": "Items API for the demo app — Express + Postgres",
+  "main": "src/server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "jest",
+    "lint": "eslint ."
+  },
+  "dependencies": {
+    "express": "^5.1.0",
+    "pg": "^8.13.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.17.0",
+    "eslint": "^9.17.0",
+    "globals": "^15.14.0",
+    "jest": "^29.7.0",
+    "supertest": "^7.0.0"
+  }
+}

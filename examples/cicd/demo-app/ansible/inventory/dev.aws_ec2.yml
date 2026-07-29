@@ -1,0 +1,21 @@
+---
+# Dynamic inventory: discover this env's instances by tag. SSH to the public IP.
+plugin: amazon.aws.aws_ec2
+regions:
+  - us-east-1
+filters:
+  tag:Project: demo-app
+  tag:Env: dev
+  instance-state-name: running
+hostnames:
+  - instance-id
+# Group by the Role tag → groups named exactly "app" and "db".
+keyed_groups:
+  - key: tags.Role
+    prefix: ""
+    separator: ""
+compose:
+  # SSH target = public IP; keep the private IP so the app role can point the
+  # backend at the db host over the VPC's internal network.
+  ansible_host: public_ip_address
+  private_ip: private_ip_address

@@ -1,0 +1,112 @@
+name: CD
+
+# One parameterized deploy job — no per-env duplication. Two ways in:
+#   • merge to main   → auto-deploys DEV (image tag = commit SHA)
+#   • Run workflow    → pick the environment (dev/prod) and an optional image tag
+#
+# Kept as ONE ordered pipeline on purpose: the deploy order matters (infra must
+# exist before images are pushed, images before Ansible deploys them). Choosing
+# prod trips that GitHub Environment's required-reviewer gate automatically.
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Environment to deploy
+        type: choice
+        options: [dev, prod]
+        default: dev
+        required: true
+      image_tag:
+        description: Image tag to build & deploy (blank = commit SHA)
+        type: string
+        required: false
+        default: ""
+  push:
+    branches: [main]
+    paths:
+      - "backend/**"
+      - "frontend/**"
+      - "db/**"
+      - "terraform/**"
+      - "ansible/**"
+      - ".github/workflows/cd.yml"
+
+permissions:
+  id-token: write # OIDC → AWS
+  contents: read
+
+env:
+  # Region + OIDC role come from repo-level variables (set once, reused everywhere).
+  AWS_REGION: ${{ vars.AWS_REGION }}
+  ROLE_ARN: ${{ vars.AWS_ROLE_ARN }}
+  # Resolve trigger → target. A push has no inputs, so default to dev.
+  TARGET_ENV: ${{ github.event.inputs.environment || 'dev' }}
+  IMAGE_TAG: ${{ github.event.inputs.image_tag || github.sha }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    # Picking prod hits that environment's required-reviewer gate automatically;
+    # dev is unprotected and deploys straight through.
+    environment: ${{ github.event.inputs.environment || 'dev' }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Authenticate to AWS (OIDC)
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ env.ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - uses: hashicorp/setup-terraform@v3
+
+      # 1) Provision infra (also creates the ECR repos the next step pushes to).
+      #    DB credentials come from GitHub secrets → Terraform → SSM Parameter Store.
+      - name: Terraform apply
+        env:
+          TF_VAR_db_username: ${{ secrets.DB_USERNAME }}
+          TF_VAR_db_password: ${{ secrets.DB_PASSWORD }}
+        run: |
+          cd "terraform/envs/$TARGET_ENV"
+          terraform init -input=false
+          terraform apply -auto-approve -input=false
+
+      - name: Export Terraform outputs
+        run: |
+          cd "terraform/envs/$TARGET_ENV"
+          BE=$(terraform output -raw backend_ecr_url)
+          FE=$(terraform output -raw frontend_ecr_url)
+          echo "BACKEND_REPO=$BE" >> "$GITHUB_ENV"
+          echo "FRONTEND_REPO=$FE" >> "$GITHUB_ENV"
+          echo "ECR_REGISTRY=${BE%%/*}" >> "$GITHUB_ENV"
+
+      # 2) Build + push images (ECR now exists), tagged with IMAGE_TAG.
+      - name: Build and push images
+        run: |
+          aws ecr get-login-password --region "$AWS_REGION" \
+            | docker login --username AWS --password-stdin "$ECR_REGISTRY"
+          docker build -t "$BACKEND_REPO:$IMAGE_TAG" -t "$BACKEND_REPO:latest" ./backend
+          docker build -t "$FRONTEND_REPO:$IMAGE_TAG" -t "$FRONTEND_REPO:latest" ./frontend
+          docker push "$BACKEND_REPO" --all-tags
+          docker push "$FRONTEND_REPO" --all-tags
+
+      # 3) Deploy the containers with Ansible, over SSH to the instances' public IPs.
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Install Ansible
+        run: |
+          pip install ansible boto3 botocore
+          ansible-galaxy collection install -r ansible/requirements.yml
+      - name: Write the SSH private key
+        run: |
+          install -m 600 /dev/null key.pem
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > key.pem
+      - name: Ansible deploy
+        working-directory: ansible
+        run: |
+          ansible-playbook -i "inventory/${TARGET_ENV}.aws_ec2.yml" site.yml \
+            --private-key ../key.pem \
+            -e env_name="$TARGET_ENV" \
+            -e ecr_registry="$ECR_REGISTRY" \
+            -e image_tag="$IMAGE_TAG"

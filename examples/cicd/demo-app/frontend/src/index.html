@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Items — demo app</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main>
+      <h1>Items</h1>
+      <p class="sub">
+        frontend (nginx) → <code>/api</code> → backend (Node) → Postgres
+      </p>
+
+      <form id="add-form">
+        <input id="name" type="text" placeholder="Add an item…" autocomplete="off" />
+        <button type="submit">Add</button>
+      </form>
+
+      <ul id="items"><li class="empty">Loading…</li></ul>
+
+      <p id="status" class="status"></p>
+    </main>
+    <script src="app.js"></script>
+  </body>
+</html>

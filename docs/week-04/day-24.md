@@ -105,7 +105,7 @@ Small flags that matter in automation:
 Automate a **tiny** Terraform config with GitHub Actions: `plan` on PRs, `apply` on merge, authenticated by OIDC. The infra is intentionally trivial — a single **EC2 instance** (a `t3.micro`, free-tier-eligible) — so all your attention is on the pipeline.
 
 !!! note "Runnable version in the repo"
-    The complete project is at [`examples/cicd/terraform-ci`](https://github.com/rbalman/devops-month/tree/main/examples/cicd/terraform-ci) — copy it into a fresh `terraform-ci` repo, or build it from the snippets below.
+    The complete project is at [`examples/cicd/terraform-ci`](https://github.com/rbalman/devops-month/tree/main/examples/cicd/terraform-ci) — copy it into a fresh `terraform-ci` repo; the steps below walk through what's in it.
 
 !!! important "Reuse your S3 backend"
     Use the state bucket from [Day 21, Section 3](../week-03/day-21.md#3-remote-backend-s3-the-modern-way). This config gets its own key: `ci-demo/terraform.tfstate`.
@@ -121,98 +121,14 @@ Note the **role ARN**.
 
 ### 2. The Terraform config
 
-This lab lives in its **own repo** — create an empty `terraform-ci` on github.com and clone it (don't reuse the sample-app repo). In it, make a `terraform/` folder. **`terraform/main.tf`** — one EC2 instance:
-
-```hcl
-terraform {
-  required_version = ">= 1.10"
-  required_providers {
-    aws = { source = "hashicorp/aws", version = "~> 6.0" }
-  }
-  backend "s3" {
-    bucket       = "golive-tf-state-<you>"
-    key          = "ci-demo/terraform.tfstate"
-    region       = "us-east-1"
-    encrypt      = true
-    use_lockfile = true
-  }
-}
-
-provider "aws" {
-  region = "us-east-1"
-}
-
-# Latest Ubuntu 24.04 AMI, published by Canonical
-data "aws_ami" "ubuntu" {
-  most_recent = true
-  owners      = ["099720109477"]
-  filter {
-    name   = "name"
-    values = ["ubuntu/images/hvm-ssd-gp3/ubuntu-noble-24.04-amd64-server-*"]
-  }
-}
-
-resource "aws_instance" "demo" {
-  ami           = data.aws_ami.ubuntu.id
-  instance_type = "t3.micro"
-  tags          = { Name = "ci-demo", ManagedBy = "github-actions" }
-}
-
-output "public_ip" {
-  value = aws_instance.demo.public_ip
-}
-```
+This lab lives in its **own repo** — create an empty `terraform-ci` on github.com and clone it (don't reuse the sample-app repo). Copy the **`terraform/`** folder from the reference project — [`examples/cicd/terraform-ci/terraform/`](https://github.com/rbalman/devops-month/tree/main/examples/cicd/terraform-ci/terraform) — into it. It's a single `t3.micro` EC2 instance wired to the S3 backend; open **`terraform/main.tf`** and set the backend `bucket` to your state bucket (its key is `ci-demo/terraform.tfstate`).
 
 !!! tip "Commit the lock file"
     After `terraform init`, commit the generated **`.terraform.lock.hcl`** — it pins the exact provider version so your machine and the CI runner resolve the same AWS provider. Only `.terraform/` and `*.tfstate` belong in `.gitignore`.
 
 ### 3. The workflow — plan on PR, apply on merge
 
-**`.github/workflows/terraform.yml`**:
-
-```yaml
-name: Terraform
-
-on:
-  pull_request:
-    paths: ["terraform/**"]
-  push:
-    branches: [main]
-    paths: ["terraform/**"]
-
-permissions:
-  id-token: write        # request the OIDC token
-  contents: read
-
-jobs:
-  terraform:
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: terraform
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Authenticate to AWS (OIDC)
-        uses: aws-actions/configure-aws-credentials@v6
-        with:
-          role-to-assume: arn:aws:iam::<acct>:role/github-actions
-          aws-region: us-east-1
-
-      - uses: hashicorp/setup-terraform@v3
-
-      - run: terraform init -input=false
-      - run: terraform fmt -check
-      - run: terraform validate -no-color
-
-      - name: Plan (on PRs)
-        if: github.event_name == 'pull_request'
-        run: terraform plan -no-color -input=false
-
-      - name: Apply (on merge to main)
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-        run: terraform apply -auto-approve -input=false
-```
+Copy **`.github/workflows/terraform.yml`** from the same reference project — [`examples/cicd/terraform-ci/.github/workflows/`](https://github.com/rbalman/devops-month/tree/main/examples/cicd/terraform-ci/.github/workflows) — to your repo root, then set `role-to-assume` to the **role ARN** from step 1. On a PR it runs `init → fmt → validate → plan`; on merge to `main` it runs `apply`.
 
 ### 4. Run the full cycle
 
