@@ -1,8 +1,8 @@
 ---
 # Dynamic inventory: discover this env's instances by tag. SSH to the public IP.
+# No `regions:` — the plugin uses the runner's region (AWS_DEFAULT_REGION), so it
+# follows whatever region you deploy to instead of a hard-coded one.
 plugin: amazon.aws.aws_ec2
-regions:
-  - us-east-1
 filters:
   tag:Project: demo-app
   tag:Env: dev
@@ -11,7 +11,7 @@ hostnames:
   - instance-id
 # Group by the Role tag → groups named exactly "app" and "db".
 keyed_groups:
-  - key: tags.Role
+  - key: ec2_tags.Role
     prefix: ""
     separator: ""
 compose:

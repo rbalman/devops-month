@@ -1,7 +1,7 @@
 name: Terraform CI
 
 # Only runs when Terraform changes. validate is offline (no creds); plan runs on
-# PRs so the diff is reviewable before merge. apply lives in cd.yml.
+# PRs so the diff is reviewable before merge. apply lives in deploy-infra.yml.
 on:
   pull_request:
     paths: ["terraform/**"]

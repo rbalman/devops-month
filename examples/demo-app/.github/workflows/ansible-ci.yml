@@ -1,7 +1,7 @@
 name: Ansible CI
 
 # Only runs when Ansible changes. Lint + syntax-check against a static stub so no
-# AWS credentials are needed. The real deploy is in cd.yml.
+# AWS credentials are needed. The real deploy is in deploy-app.yml.
 on:
   pull_request:
     paths: ["ansible/**"]

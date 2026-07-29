@@ -52,29 +52,23 @@ resource "aws_iam_role" "this" {
   tags = var.tags
 }
 
-# Pull images from the given ECR repos (the token endpoint is account-wide).
+# Pull images from any ECR repo in the account (kept broad for this demo).
 resource "aws_iam_role_policy" "ecr_pull" {
   count = var.instance_count
   name  = "ecr-pull"
   role  = aws_iam_role.this[count.index].id
   policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [
-      {
-        Effect   = "Allow"
-        Action   = "ecr:GetAuthorizationToken"
-        Resource = "*"
-      },
-      {
-        Effect = "Allow"
-        Action = [
-          "ecr:GetDownloadUrlForLayer",
-          "ecr:BatchGetImage",
-          "ecr:BatchCheckLayerAvailability",
-        ]
-        Resource = var.ecr_repository_arns
-      },
-    ]
+    Statement = [{
+      Effect = "Allow"
+      Action = [
+        "ecr:GetAuthorizationToken",
+        "ecr:GetDownloadUrlForLayer",
+        "ecr:BatchGetImage",
+        "ecr:BatchCheckLayerAvailability",
+      ]
+      Resource = "*"
+    }]
   })
 }
 

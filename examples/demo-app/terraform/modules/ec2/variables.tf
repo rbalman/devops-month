@@ -32,11 +32,6 @@ variable "key_name" {
   type        = string
 }
 
-variable "ecr_repository_arns" {
-  description = "ECR repo ARNs the instances may pull from (scopes their IAM policy)."
-  type        = list(string)
-}
-
 variable "ssh_ingress_cidr" {
   description = "CIDR allowed to SSH to these instances."
   type        = string

@@ -86,16 +86,15 @@ resource "aws_ssm_parameter" "db_name" {
 # --- Compute: 2 app instances + 1 db instance, all in public[0] ------------
 # Each ec2 module owns its instances' security group + per-instance IAM roles.
 module "app" {
-  source              = "../../modules/ec2"
-  name                = "${local.name}-app"
-  instance_count      = 2
-  ami_id              = data.aws_ami.ubuntu.id
-  instance_type       = var.app_instance_type
-  subnet_ids          = module.vpc.public_subnet_ids # spread across both AZs
-  vpc_id              = module.vpc.vpc_id
-  key_name            = var.key_name
-  ecr_repository_arns = module.ecr.repository_arns
-  ssh_ingress_cidr    = var.ssh_ingress_cidr
+  source           = "../../modules/ec2"
+  name             = "${local.name}-app"
+  instance_count   = 2
+  ami_id           = data.aws_ami.ubuntu.id
+  instance_type    = var.app_instance_type
+  subnet_ids       = module.vpc.public_subnet_ids # spread across both AZs
+  vpc_id           = module.vpc.vpc_id
+  key_name         = var.key_name
+  ssh_ingress_cidr = var.ssh_ingress_cidr
   ingress_from_sg = [{
     description              = "HTTP from ALB"
     port                     = 80
@@ -109,13 +108,12 @@ module "db" {
   source = "../../modules/ec2"
   name   = "${local.name}-db"
   # instance_count defaults to 1
-  ami_id              = data.aws_ami.ubuntu.id
-  instance_type       = var.db_instance_type
-  subnet_ids          = [module.vpc.public_subnet_ids[0]] # single AZ (one instance)
-  vpc_id              = module.vpc.vpc_id
-  key_name            = var.key_name
-  ecr_repository_arns = module.ecr.repository_arns
-  ssh_ingress_cidr    = var.ssh_ingress_cidr
+  ami_id           = data.aws_ami.ubuntu.id
+  instance_type    = var.db_instance_type
+  subnet_ids       = [module.vpc.public_subnet_ids[0]] # single AZ (one instance)
+  vpc_id           = module.vpc.vpc_id
+  key_name         = var.key_name
+  ssh_ingress_cidr = var.ssh_ingress_cidr
   ingress_from_sg = [{
     description              = "Postgres from app"
     port                     = 5432

@@ -1,8 +1,6 @@
 ---
 # Same as dev.aws_ec2.yml but scoped to the prod instances.
 plugin: amazon.aws.aws_ec2
-regions:
-  - us-east-1
 filters:
   tag:Project: demo-app
   tag:Env: prod
@@ -10,7 +8,7 @@ filters:
 hostnames:
   - instance-id
 keyed_groups:
-  - key: tags.Role
+  - key: ec2_tags.Role
     prefix: ""
     separator: ""
 compose:

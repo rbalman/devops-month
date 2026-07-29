@@ -38,11 +38,12 @@ demo-app/
 ├── frontend/  backend/  db/init.sql
 ├── terraform/{modules,envs/{dev,prod}}   # each security group lives with its resource
 ├── ansible/{inventory,roles/{common,database,app}}
-└── .github/workflows/   # backend-ci · frontend-ci · terraform-ci · ansible-ci · cd
+└── .github/workflows/   # backend-ci · frontend-ci · terraform-ci · ansible-ci · infra · deploy
 ```
 
-CI is **path-scoped** (a frontend PR runs only `frontend-ci`, etc.). On merge to `main`,
-`backend-ci`/`frontend-ci` build+push their image to ECR, and `cd.yml` provisions + deploys.
+CI is **path-scoped** (a frontend PR runs only `frontend-ci`, etc.). The deploy is **three
+separate stages** you run in order: **`deploy-infra`** (Terraform) → **`backend-ci`/`frontend-ci`**
+(build & push images to ECR) → **`deploy-app`** (Ansible). Each is manual (*Run workflow*).
 
 ## Run locally (no AWS)
 
@@ -100,19 +101,28 @@ gh secret   set DB_PASSWORD   --body "<pick-a-strong-password>"
 - `backend.tf` → your S3 state `bucket`
 - `terraform.tfvars` → `hosted_zone_name`, `app_domain`, `key_name`
 
-Commit and push so your config (and the workflows) land in the repo:
+Commit and push so your config + workflows land in the repo:
 
 ```bash
 git add -A && git commit -m "configure demo-app" && git push -u origin main
 ```
 
-**4 · Deploy — just run the workflow.** In your repo's **Actions** tab → **CD** → **Run workflow**,
-pick **`dev`**, and hit the green button. That's the whole deploy — CD provisions the infra, builds &
-pushes the images to ECR, and deploys the containers with Ansible. Watch it tick through in **Actions**.
+Now deploy in **three ordered stages** — for each, go to the **Actions** tab, open the named
+workflow, and click **Run workflow → `dev`**:
 
-> 🚀 **Ship to prod** the same way — **Run workflow → `prod`** — it pauses for a reviewer's approval first.
+**4 · Provision the infra** — run the **Deploy Infra** workflow. It stands up the VPC, ALB, ACM,
+**ECR**, SSM, and EC2. Must come first — the next stage pushes images into the ECR it creates.
 
-**5 · Open `https://<app_domain>`** 🎉 — the frontend loads and `/api/items` reads/writes Postgres.
+**5 · Build & push the images** — run the **Backend** and **Frontend** workflows; their `build-push`
+job publishes the images to ECR.
+
+**6 · Deploy the app** — run the **Deploy App** workflow. Ansible finds the instances, pulls the
+images from ECR, and starts the containers over SSH.
+
+> 🚀 **Prod** runs the same workflows with **`prod`** — the infra and app stages each pause for a
+> reviewer's approval first.
+
+**7 · Open `https://<app_domain>`** 🎉 — the frontend loads and `/api/items` reads/writes Postgres.
 
 ## Teardown
 
