@@ -33,7 +33,7 @@ observability-instance/     runs on the OBSERVABILITY host
 ## Prerequisites
 
 - An AWS account with credentials configured (`aws configure`) and Terraform installed
-- An existing EC2 key pair, and your public IP (`curl -s ifconfig.me`)
+- An existing EC2 key pair
 - A Discord server where you can create a webhook
 
 ---
@@ -47,7 +47,7 @@ git clone https://github.com/rbalman/devops-month.git
 cd devops-month/examples/monitoring-app/terraform
 ```
 
-Create your variables file, then edit it to set `key_name` and `my_ip`:
+Create your variables file, then edit it to set `key_name`:
 
 ```bash
 cp terraform.tfvars.example terraform.tfvars

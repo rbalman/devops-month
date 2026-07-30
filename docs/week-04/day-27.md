@@ -169,9 +169,9 @@ git clone https://github.com/rbalman/devops-month.git
 cd devops-month/examples/monitoring-app/terraform
 ```
 
-This project creates an **app host** and an **observability host** in your default VPC, opens a security group (SSH + the UIs from your IP; all traffic between the two hosts), and installs **Docker + Compose** on each via `user_data`.
+This project creates an **app host** and an **observability host** in your default VPC, opens a security group (SSH + the UIs open to the world; all traffic between the two hosts), and installs **Docker + Compose** on each via `user_data`.
 
-Set your two variables — open `terraform.tfvars` and fill in `key_name` (an existing EC2 key pair) and `my_ip` (your public IP as a `/32`; get it with `curl -s ifconfig.me`):
+Set your variable — open `terraform.tfvars` and fill in `key_name` (an existing EC2 key pair):
 
 ```bash
 cp terraform.tfvars.example terraform.tfvars
