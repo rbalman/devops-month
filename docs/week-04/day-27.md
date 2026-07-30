@@ -254,6 +254,23 @@ docker compose up -d loki
 
 Loki now accepts the pushes Alloy has been retrying from the app host. Give it a few seconds.
 
+Sanity-check that logs are actually arriving — **without Grafana** — by hitting Loki's HTTP API directly on the observability host:
+
+```bash
+# Loki is up and ready
+curl -s localhost:3100/ready
+
+# Which container log streams have arrived? Expect "random-logger", "alloy", …
+curl -s localhost:3100/loki/api/v1/label/container/values
+
+# Pull a few recent lines from the app's logger
+curl -sG localhost:3100/loki/api/v1/query_range \
+  --data-urlencode 'query={container="random-logger"}' \
+  --data-urlencode 'limit=5'
+```
+
+If the label values are empty, Alloy isn't reaching Loki yet — recheck `OBS_PRIVATE_IP` in `alloy/config.alloy` on the app host. (Add `| jq` for readable JSON; `sudo apt-get install -y jq` if needed.)
+
 ### 5. Then Grafana
 
 ```bash

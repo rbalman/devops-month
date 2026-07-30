@@ -6,23 +6,24 @@ services:
   prometheus:
     image: prom/prometheus:v3.13.1
     volumes:
+      # Mount our scrape config read-only into the path Prometheus reads at startup.
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-    ports: ["9090:9090"]
+    ports: ["9090:9090"] # host:container — open the UI at http://<host>:9090
     restart: unless-stopped
 
   # Log store — receives pushes from Alloy running on the app host.
   loki:
     image: grafana/loki:3.6.0
-    command: -config.file=/etc/loki/loki-config.yml
+    command: -config.file=/etc/loki/loki-config.yml # use our config, not the built-in default
     volumes:
       - ./loki/loki-config.yml:/etc/loki/loki-config.yml:ro
-    ports: ["3100:3100"]
+    ports: ["3100:3100"] # log push + query API
     restart: unless-stopped
 
   # The single pane of glass — data sources are added by hand in the UI.
   grafana:
-    image: grafana/grafana:13.0.0
-    ports: ["3000:3000"]
+    image: grafana/grafana:13.1.1
+    ports: ["3000:3000"] # log in at http://<host>:3000
     environment:
-      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin # first-login password (username: admin)
     restart: unless-stopped

@@ -7,11 +7,13 @@ server:
 
 common:
   instance_addr: 127.0.0.1
-  path_prefix: /loki
+  # /tmp is world-writable, so Loki's non-root user (uid 10001) can create these
+  # dirs. Pointing at /loki fails with "permission denied" on this image.
+  path_prefix: /tmp/loki
   storage:
     filesystem:
-      chunks_directory: /loki/chunks
-      rules_directory: /loki/rules
+      chunks_directory: /tmp/loki/chunks
+      rules_directory: /tmp/loki/rules
   replication_factor: 1
   ring:
     kvstore:

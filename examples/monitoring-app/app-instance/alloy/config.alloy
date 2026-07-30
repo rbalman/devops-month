@@ -1,4 +1,4 @@
-// Alloy pipeline: discover containers → tidy the name into a `container` label →
+// Alloy pipeline: discover containers → set a clean `container` label →
 // tail their stdout → push to the REMOTE Loki on the observability host.
 
 discovery.docker "containers" {
@@ -8,9 +8,11 @@ discovery.docker "containers" {
 discovery.relabel "containers" {
   targets = discovery.docker.containers.targets
 
+  // Use the Docker Compose service name (e.g. "random-logger") as the container
+  // label. The raw container name is "app-instance-random-logger-1", which is
+  // ugly to query; the compose service label is clean and stable.
   rule {
-    source_labels = ["__meta_docker_container_name"]
-    regex         = "/(.*)"
+    source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
     target_label  = "container"
   }
 }
