@@ -18,12 +18,12 @@
 ## Prerequisites
 
 - An **AWS account** with credentials configured (`aws configure`) and **Terraform** installed
-- An existing **EC2 key pair** for SSH, and your **public IP** (`curl -s ifconfig.me`)
+- An existing **EC2 key pair** for SSH
 - Basic comfort with **SSH** and the terminal — the lab drives two Linux hosts by hand
 - A **Discord server** where you can create a webhook (Server Settings → Integrations → Webhooks)
 
 !!! note "Cost"
-    The lab runs **two `t3.small` EC2 instances**. Remember to `terraform destroy` when you're done (there's a reminder at the end).
+    The lab runs **two `t3.micro` EC2 instances**. Remember to `terraform destroy` when you're done (there's a reminder at the end).
 
 ---
 

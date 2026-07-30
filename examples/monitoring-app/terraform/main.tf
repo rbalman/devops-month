@@ -28,31 +28,33 @@ data "aws_subnets" "default" {
 # One security group shared by both hosts.
 resource "aws_security_group" "monitoring" {
   name        = "monitoring-lab"
-  description = "Monitoring lab: SSH + UIs from you, all traffic between the two hosts"
+  description = "Monitoring lab: SSH + UIs open, all traffic between the two hosts"
   vpc_id      = data.aws_vpc.default.id
 
+  # Open to the world to keep the lab simple. Fine for a short-lived lab you
+  # tear down; do NOT do this for anything real.
   ingress {
-    description = "SSH from you"
+    description = "SSH"
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
-    cidr_blocks = [var.my_ip]
+    cidr_blocks = ["0.0.0.0/0"]
   }
 
   ingress {
-    description = "Grafana UI from you"
+    description = "Grafana UI"
     from_port   = 3000
     to_port     = 3000
     protocol    = "tcp"
-    cidr_blocks = [var.my_ip]
+    cidr_blocks = ["0.0.0.0/0"]
   }
 
   ingress {
-    description = "Prometheus UI from you"
+    description = "Prometheus UI"
     from_port   = 9090
     to_port     = 9090
     protocol    = "tcp"
-    cidr_blocks = [var.my_ip]
+    cidr_blocks = ["0.0.0.0/0"]
   }
 
   # Everything between hosts in this SG: node-exporter scrape (9100), Loki push (3100)…
