@@ -82,7 +82,29 @@ Key ideas:
 - **Storage** is a local **TSDB**; Prometheus is built to be run per-environment, not as one giant global instance.
 - **Alertmanager** is a *separate* component for routing/grouping/silencing alerts. Today we let **Grafana** do alerting instead (one less moving part) and note Alertmanager as the Prometheus-native path.
 
-### 5. The four metric types
+### 5. Anatomy of a metric
+
+Every metric Prometheus scrapes has the same shape — read one and it tells you a lot before you even query it:
+
+```text
+node_cpu_seconds_total{cpu="0", mode="idle"}   12345.6
+└──────── name ───────┘└──────── labels ──────┘ └ value ┘
+```
+
+- **Name** — snake_case, read left→right as `namespace_subsystem…_unit_suffix`: `node` (the exporter) · `cpu` · `seconds` (the unit) · `_total` (it's a counter). The name alone says "cumulative CPU seconds."
+- **Labels** — key/value **dimensions** that split one metric into many time series (`cpu="0"`, `mode="idle"`). You **filter** on them (`{mode="idle"}`) and **aggregate** on them (`sum by (mode)`). Keep them low-cardinality.
+- **Value** — one number per scrape; stored over time, that's a **time series**.
+
+**Unit conventions** — Prometheus uses **base units** (seconds, bytes — never ms/KB), and the suffix hints at how to read it:
+
+| Suffix | Meaning | Example |
+|---|---|---|
+| `_bytes` | a size in bytes | `node_memory_MemAvailable_bytes` (429215744 ≈ 409 MiB) |
+| `_seconds` | a duration in seconds | `node_cpu_seconds_total` |
+| `_total` | a **counter** — read it with `rate()`, not raw | `node_network_receive_bytes_total` |
+| *(none)* | a **gauge** — a current value you can read directly | `node_load1` |
+
+### 6. The four metric types
 
 A client library / exporter gives you four types. Know when each is used:
 
@@ -95,33 +117,35 @@ A client library / exporter gives you four types. Know when each is used:
 
 Rule of thumb: **count things → Counter; measure a level → Gauge; time/size things → Histogram.** You almost never need Summary.
 
-### 6. PromQL in five minutes
+### 7. PromQL in five minutes
 
-PromQL queries those time series. The essentials (all runnable against this stack):
+PromQL queries those time series. Run these in the Prometheus **Graph** tab, top to bottom — each one builds on the last:
 
 ```promql
-# Instant selector — current value of a series (with a label filter)
+# 1. Is the target up? 1 = scrape ok, 0 = failed. The simplest query there is.
+up{job="node"}
+
+# 2. Free memory — a gauge, read directly (value is in bytes)
 node_memory_MemAvailable_bytes
 
-# rate() over a 5-minute window — per-second rate of a counter (the #1 pattern)
+# 3. Free disk on the root filesystem — same idea, but pick one series with a label
+node_filesystem_avail_bytes{mountpoint="/"}
+
+# 4. Network in / out — these are counters, so wrap in rate() → bytes per second
 rate(node_network_receive_bytes_total[5m])
+rate(node_network_transmit_bytes_total[5m])
 
-# Aggregate away labels — total across all CPUs, grouped by mode
-sum by (mode) (rate(node_cpu_seconds_total[5m]))
+# 5. A little math: turn free disk into "percent used"
+100 * (1 - node_filesystem_avail_bytes{mountpoint="/"}
+          / node_filesystem_size_bytes{mountpoint="/"})
 
-# CPU busy % = 1 − idle fraction
+# 6. CPU utilization % — aggregate across all cores, then invert idle
 100 * (1 - avg(rate(node_cpu_seconds_total{mode="idle"}[5m])))
-
-# p95 from a histogram
-histogram_quantile(0.95, sum by (le) (rate(prometheus_http_request_duration_seconds_bucket[5m])))
-
-# Is a target down? (up is 1 when a scrape succeeds, 0 when it fails)
-up{job="node"} == 0
 ```
 
-Two things trip people up: you almost always wrap a **counter** in `rate(...)` (the raw number is meaningless — only its *slope* matters), and `[5m]` is a **range** `rate()` needs, not a filter.
+Two things trip people up: you almost always wrap a **counter** (anything ending `_total`) in `rate(...)` — the raw number only ever climbs, so its *slope* is what matters — and `[5m]` is a **range** that `rate()` needs, not a label filter.
 
-### 7. Loki — architecture
+### 8. Loki — architecture
 
 <iframe width="560" height="315" src="https://www.youtube.com/embed/0B-yQdSXFJE" title="Mastering Grafana Loki" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
 
@@ -133,7 +157,7 @@ Notice the shape mirrors Prometheus: shippers **push logs** in (where Prometheus
 
 A **log stream** = a unique set of labels. Same discipline as Prometheus: **labels are low-cardinality** (`container`, `level`), and everything else stays in the log line, filtered with LogQL. In production Loki splits into distributor/ingester/querier components; today we run the **single-binary** mode — one container, filesystem storage.
 
-### 8. Alloy — the log shipper
+### 9. Alloy — the log shipper
 
 <iframe width="560" height="315" src="https://www.youtube.com/embed/Xa3mCIdsno4" title="How to Send Logs to Grafana Using Alloy" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
 
@@ -146,7 +170,7 @@ discovery.docker  ──▶  discovery.relabel  ──▶  loki.source.docker  �
 
 Each block declares one component and wires its output into the next. We point it at the Docker socket so it auto-discovers every container in the stack.
 
-### 9. Grafana — the single pane of glass
+### 10. Grafana — the single pane of glass
 
 <iframe width="560" height="315" src="https://www.youtube.com/embed/lILY8eSspEo" title="Grafana Explained in Under 5 Minutes" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
 
