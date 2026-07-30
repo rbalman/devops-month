@@ -1,0 +1,15 @@
+# What Prometheus scrapes and how often.
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  # Prometheus scraping itself — a handy sanity check.
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  # The APP host's node-exporter. Replace APP_PRIVATE_IP with its private IP
+  # (from `terraform output app_private_ip`).
+  - job_name: node
+    static_configs:
+      - targets: ["APP_PRIVATE_IP:9100"]

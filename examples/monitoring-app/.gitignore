@@ -1,0 +1,13 @@
+# Terraform — ignore local state, provider binaries, and plans,
+# but KEEP .terraform.lock.hcl (it pins provider versions).
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+crash.log
+crash.*.log
+
+# Your real variables + keys (never commit) — the .example stays tracked.
+terraform.tfvars
+*.auto.tfvars
+*.pem

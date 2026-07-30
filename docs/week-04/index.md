@@ -15,7 +15,7 @@ The final week — **Ship It, Watch It, Secure It**. You'll take an **end-to-end
 
 **Operate it:**
 
-- [Day 6 · Monitoring & Alerting](day-27.md) — Prometheus, Loki, and Grafana (via Alloy) for metrics, logs, dashboards, and alerts to Discord.
+- [Day 6 · Monitoring & Alerting](day-27.md) — observability & the three signals; Prometheus (metric types, PromQL), Loki (LogQL) + Alloy, and Grafana dashboards + alerts to Discord, on a two-host AWS lab provisioned with Terraform.
 - [Day 7 · Security Best Practices](day-28.md) — DevSecOps: secrets, least-privilege, network hardening, image + IaC scanning, supply-chain safety; plus course wrap-up and what comes next.
 
 !!! warning "Mind the meter"

@@ -55,7 +55,7 @@ Each session is **1–1.5 hours** of focused work: ~20 min theory + ~50 min hand
 | [Day 3](week-04/day-24.md) | Terraform in CI/CD | Why IaC belongs in a pipeline, OIDC keyless AWS auth, `fmt`/`validate`/`plan`/`apply` as stages, plan-on-PR + apply-on-merge; small standalone example |
 | [Day 4](week-04/day-25.md) | Ansible in CI/CD | `ansible-lint`/`--syntax-check`/`--check` gates, SSH key + Vault password from secrets, apply on merge, idempotency as a safety net; small standalone example |
 | [Day 5](week-04/day-26.md) | Deploy a Full-Stack AWS Project | The capstone — a three-tier app (frontend + backend + Postgres) on production-shaped AWS (VPC, ALB/HTTPS, ECR, EC2), provisioned with Terraform, deployed with Ansible, driven by GitHub Actions; clone the demo-app and ship it end to end |
-| [Day 6](week-04/day-27.md) | Monitoring & Alerting | Prometheus (metrics), Loki (logs), Grafana (dashboards + log queries + alerting → Discord) via Alloy; watch the end-to-end app |
+| [Day 6](week-04/day-27.md) | Monitoring & Alerting | Observability vs monitoring, the three signals; Prometheus (architecture, metric types, PromQL), Loki (architecture, LogQL) + Alloy, Grafana dashboards + alert → Discord; two-host AWS lab (Terraform) — an app host emitting metrics/logs watched by an observability host |
 | [Day 7](week-04/day-28.md) | Security Best Practices | DevSecOps / shift-left; secrets, least-privilege IAM, tight security groups, image + IaC scanning (Trivy), pin actions to SHA, Dependabot; course wrap-up & what's next |
 
 ---

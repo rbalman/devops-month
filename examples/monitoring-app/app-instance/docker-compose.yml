@@ -1,0 +1,32 @@
+# Runs on the APP host — the thing being observed. It generates the two signals:
+# node-exporter (host metrics, scraped by remote Prometheus) and random-logger
+# (log lines, shipped to remote Loki by Alloy).
+services:
+  # Host metrics — Prometheus on the observability host scrapes this over the network.
+  # node-exporter measures the HOST, so it needs the host's PID + network namespaces
+  # and its root filesystem — otherwise disk/fs metrics report the container, not the host.
+  # (network_mode: host makes it listen on the host's :9100 directly, so no `ports:`.)
+  node-exporter:
+    image: prom/node-exporter:v1.12.1
+    command:
+      - "--path.rootfs=/host"
+    pid: host
+    network_mode: host
+    volumes:
+      - "/:/host:ro,rslave"
+    restart: unless-stopped
+
+  # A stand-in application: prints a random DEBUG/INFO/WARN/ERROR line every 1–4s.
+  random-logger:
+    image: chentex/random-logger:v1.0.1
+    command: ["1000", "4000"]
+    restart: unless-stopped
+
+  # Log shipper: tails every container's stdout and pushes to the remote Loki.
+  alloy:
+    image: grafana/alloy:v1.18.0
+    command: run /etc/alloy/config.alloy
+    volumes:
+      - ./alloy/config.alloy:/etc/alloy/config.alloy:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    restart: unless-stopped

@@ -1,0 +1,30 @@
+// Alloy pipeline: discover containers → tidy the name into a `container` label →
+// tail their stdout → push to the REMOTE Loki on the observability host.
+
+discovery.docker "containers" {
+  host = "unix:///var/run/docker.sock"
+}
+
+discovery.relabel "containers" {
+  targets = discovery.docker.containers.targets
+
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/(.*)"
+    target_label  = "container"
+  }
+}
+
+loki.source.docker "logs" {
+  host       = "unix:///var/run/docker.sock"
+  targets    = discovery.relabel.containers.output
+  forward_to = [loki.write.default.receiver]
+}
+
+loki.write "default" {
+  // Replace OBS_PRIVATE_IP with the observability host's PRIVATE IP
+  // (from `terraform output observability_private_ip`). Alloy retries until Loki is up.
+  endpoint {
+    url = "http://OBS_PRIVATE_IP:3100/loki/api/v1/push"
+  }
+}

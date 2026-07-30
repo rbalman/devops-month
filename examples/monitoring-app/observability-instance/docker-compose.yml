@@ -1,0 +1,28 @@
+# Runs on the OBSERVABILITY host — the monitoring backend. Bring these up one at a
+# time in the lab: prometheus → loki → grafana. Grafana reaches the other two by
+# service name (http://prometheus:9090, http://loki:3100) on this Compose network.
+services:
+  # Metrics store — scrapes the app host's node-exporter (see prometheus.yml).
+  prometheus:
+    image: prom/prometheus:v3.13.1
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports: ["9090:9090"]
+    restart: unless-stopped
+
+  # Log store — receives pushes from Alloy running on the app host.
+  loki:
+    image: grafana/loki:3.6.0
+    command: -config.file=/etc/loki/loki-config.yml
+    volumes:
+      - ./loki/loki-config.yml:/etc/loki/loki-config.yml:ro
+    ports: ["3100:3100"]
+    restart: unless-stopped
+
+  # The single pane of glass — data sources are added by hand in the UI.
+  grafana:
+    image: grafana/grafana:13.0.0
+    ports: ["3000:3000"]
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    restart: unless-stopped

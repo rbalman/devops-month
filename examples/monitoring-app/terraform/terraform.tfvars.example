@@ -1,0 +1,5 @@
+# Copy to terraform.tfvars and fill in.
+key_name = "my-keypair"      # an existing EC2 key pair name
+my_ip    = "203.0.113.4/32"  # your public IP: curl -s ifconfig.me
+# region        = "us-east-1"
+# instance_type = "t3.small"

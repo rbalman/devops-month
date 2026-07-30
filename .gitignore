@@ -3,3 +3,14 @@ __pycache__/
 *.pyc
 .env
 .claude
+
+# Terraform (safety net for all examples) — keep .terraform.lock.hcl
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+terraform.tfvars
+*.auto.tfvars
+
+# SSH keys — never commit
+*.pem
