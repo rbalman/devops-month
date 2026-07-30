@@ -362,42 +362,7 @@ Give the rule a **`for`** duration (e.g. `1m`) so it fires only when the conditi
 
 ## Assignment
 
-**Goal:** add a new **exporter** to the app host and fire a Discord alert from one of *its* metrics. Recommended exporter: **cAdvisor** — "node-exporter, but for containers." It's a single container, needs no config file, and the app host is already running containers worth measuring.
-
-**Steps**
-
-1. **Run cAdvisor on the app host.** Add it to `app-instance/docker-compose.yml` as a new service (hint below), then `docker compose up -d`.
-2. **Scrape it.** Add a `cadvisor` job to the observability host's `prometheus.yml` pointing at the app host's private IP, then restart Prometheus (`docker compose restart prometheus`).
-3. **Verify.** In Prometheus → **Status → Targets**, the `cadvisor` job should be **UP**. Try a query, e.g. `container_memory_usage_bytes`.
-4. **Alert.** Create a Grafana alert rule on a cAdvisor metric, routed to your Discord contact point — for example a container over a memory threshold:
-   ```promql
-   container_memory_usage_bytes{name="random-logger"} > 50e6
-   ```
-5. **Trigger & resolve.** Force it to fire (lower the threshold, or load the container), then bring it back and confirm the resolved notice.
-
-**Hint — cAdvisor as a Compose service** (in `app-instance/docker-compose.yml`):
-
-```yaml
-  cadvisor:
-    image: gcr.io/cadvisor/cadvisor:v0.60.5
-    ports: ["8080:8080"]
-    volumes:
-      - /:/rootfs:ro
-      - /var/run:/var/run:ro
-      - /sys:/sys:ro
-      - /var/lib/docker/:/var/lib/docker:ro
-    restart: unless-stopped
-```
-
-**Hint — the scrape job** (in `observability-instance/prometheus/prometheus.yml`):
-
-```yaml
-  - job_name: cadvisor
-    static_configs:
-      - targets: ["APP_PRIVATE_IP:8080"]
-```
-
-**Submit:** your updated `docker-compose.yml` + `prometheus.yml`, a screenshot of the `cadvisor` target **UP** in Prometheus, and the **Discord alert** (firing + resolved).
+Watch **all the videos** in the Prometheus architecture playlist linked from the [theory section](#4-prometheus-architecture) above. Take notes on how the pull model, exporters, TSDB, and Alertmanager fit together — you'll build on this understanding in the labs.
 
 ---
 
